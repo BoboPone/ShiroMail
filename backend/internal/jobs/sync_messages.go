@@ -16,7 +16,6 @@ type MailboxSyncer interface {
 
 type InboundSpoolProcessor interface {
 	ProcessNextSpool(ctx context.Context) error
-	PeekNextSpool(ctx context.Context) (ingest.SpoolItem, error)
 }
 
 func RunSyncMessagesJob(ctx context.Context, repo mailbox.Repository, syncService MailboxSyncer) error {
@@ -44,15 +43,6 @@ func RunInboundSpoolJob(ctx context.Context, processor InboundSpoolProcessor) er
 	}
 
 	for {
-		if _, err := processor.PeekNextSpool(ctx); err != nil {
-			switch {
-			case errors.Is(err, ingest.ErrSpoolItemNotFound):
-				return nil
-			default:
-				return err
-			}
-		}
-
 		err := processor.ProcessNextSpool(ctx)
 		switch {
 		case err == nil:

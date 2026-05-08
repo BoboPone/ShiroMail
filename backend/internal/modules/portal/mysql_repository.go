@@ -285,6 +285,35 @@ func (r *MySQLRepository) ToggleWebhook(ctx context.Context, userID uint64, webh
 	return r.getWebhook(ctx, userID, webhookID)
 }
 
+func (r *MySQLRepository) ListWebhookDeliveryLogs(ctx context.Context, userID uint64, webhookID uint64, limit int) ([]WebhookDeliveryLog, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	var rows []database.WebhookDeliveryLogRow
+	q := r.db.WithContext(ctx).Where("user_id = ?", userID)
+	if webhookID > 0 {
+		q = q.Where("webhook_id = ?", webhookID)
+	}
+	if err := q.Order("id DESC").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	items := make([]WebhookDeliveryLog, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, WebhookDeliveryLog{
+			ID:             row.ID,
+			WebhookID:      row.WebhookID,
+			Event:          row.Event,
+			TargetURL:      row.TargetURL,
+			ResponseStatus: row.ResponseStatus,
+			LatencyMs:      row.LatencyMs,
+			Success:        row.Success,
+			ErrorMessage:   row.ErrorMessage,
+			CreatedAt:      row.CreatedAt,
+		})
+	}
+	return items, nil
+}
+
 func (r *MySQLRepository) ListDocs(ctx context.Context) ([]DocArticle, error) {
 	var rows []database.DocArticleRow
 	if err := r.db.WithContext(ctx).Order("updated_at DESC, created_at DESC, id DESC").Find(&rows).Error; err != nil {

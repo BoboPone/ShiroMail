@@ -5,6 +5,7 @@ x-backend-env: &backend-env
   MYSQL_DSN: ${MYSQL_DSN:-root:root@tcp(mysql:3306)/shiro_email?parseTime=true}
   REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
   JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
   MAIL_STORAGE_PATH: /app/data/mail
 
 services:
@@ -21,6 +22,11 @@ services:
       retries: 10
     volumes:
       - mysql_data:/var/lib/mysql
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+          cpus: "1.0"
 
   redis:
     image: redis:7
@@ -32,14 +38,14 @@ services:
       retries: 10
     volumes:
       - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
 
   app:
     image: ${SHIROMAIL_IMAGE:-ghcr.io/galiais/shiromail:latest}
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    #   args:
-    #     VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
     restart: unless-stopped
     environment: *backend-env
     depends_on:
@@ -52,12 +58,14 @@ services:
       - "${SMTP_PORT:-25}:2525"
     volumes:
       - mail_data:/app/data/mail
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
 
   worker:
     image: ${SHIROMAIL_IMAGE:-ghcr.io/galiais/shiromail:latest}
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
     command: ["shiro-worker"]
     restart: unless-stopped
     environment: *backend-env
@@ -68,6 +76,11 @@ services:
         condition: service_healthy
     volumes:
       - mail_data:/app/data/mail
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
 
 volumes:
   mysql_data:

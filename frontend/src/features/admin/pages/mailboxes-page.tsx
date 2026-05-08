@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import i18n from "@/lib/i18n";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
@@ -85,7 +86,7 @@ const mailboxAutoRefreshOptions = [
 const ADMIN_MAILBOXES_PAGE_SIZE = 8;
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(i18n.language, {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",

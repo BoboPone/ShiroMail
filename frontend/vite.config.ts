@@ -16,6 +16,19 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    target: "es2020",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          query: ["@tanstack/react-query"],
+          ui: ["radix-ui", "class-variance-authority", "clsx", "tailwind-merge", "lucide-react"],
+          i18n: ["i18next", "react-i18next"],
+        },
+      },
+    },
+  },
   test: {
     environment: "jsdom",
     setupFiles: "./src/tests/setup.ts",

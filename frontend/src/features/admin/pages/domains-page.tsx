@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Check, ChevronDown, ChevronUp, CircleX, Globe, LoaderCircle, Plus, RefreshCcw } from "lucide-react";
+import i18n from "@/lib/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -277,7 +278,7 @@ function formatVerificationTimestamp(value?: string) {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(i18n.language, {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",

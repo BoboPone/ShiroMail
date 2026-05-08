@@ -164,6 +164,69 @@ func (c *Controller) DeleteUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
+func (c *Controller) BanUser(ctx *gin.Context) {
+	actorID, ok := currentUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+
+	userID, ok := parseAdminParamID(ctx, "id")
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+		return
+	}
+
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	_ = ctx.ShouldBindJSON(&req)
+
+	item, err := c.service.BanUser(ctx, actorID, userID, req.Reason)
+	if err != nil {
+		switch {
+		case errors.Is(err, auth.ErrUserNotFound):
+			ctx.JSON(http.StatusNotFound, gin.H{"message": "user not found"})
+		case errors.Is(err, ErrCannotBanSelf), errors.Is(err, ErrCannotBanAdmin):
+			ctx.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		default:
+			ctx.JSON(http.StatusInternalServerError, gin.H{"message": "failed to ban user"})
+		}
+		return
+	}
+
+	ctx.JSON(http.StatusOK, item)
+}
+
+func (c *Controller) UnbanUser(ctx *gin.Context) {
+	actorID, ok := currentUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+
+	userID, ok := parseAdminParamID(ctx, "id")
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+		return
+	}
+
+	item, err := c.service.UnbanUser(ctx, actorID, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, auth.ErrUserNotFound):
+			ctx.JSON(http.StatusNotFound, gin.H{"message": "user not found"})
+		case errors.Is(err, ErrInvalidUserProfile):
+			ctx.JSON(http.StatusBadRequest, gin.H{"message": "user is not banned"})
+		default:
+			ctx.JSON(http.StatusInternalServerError, gin.H{"message": "failed to unban user"})
+		}
+		return
+	}
+
+	ctx.JSON(http.StatusOK, item)
+}
+
 func (c *Controller) ListDomains(ctx *gin.Context) {
 	items, err := c.service.ListDomains(ctx)
 	if err != nil {

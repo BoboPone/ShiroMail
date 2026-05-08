@@ -231,6 +231,21 @@ func (c *Controller) ToggleWebhook(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, item)
 }
 
+func (c *Controller) ListWebhookDeliveryLogs(ctx *gin.Context) {
+	userID, ok := authUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+	webhookID, _ := parseParamID(ctx, "id")
+	items, err := c.service.ListWebhookDeliveryLogs(ctx, userID, webhookID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "failed to load delivery logs"})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"items": items})
+}
+
 func (c *Controller) ListDocs(ctx *gin.Context) {
 	items, err := c.service.ListDocs(ctx)
 	if err != nil {

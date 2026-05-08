@@ -119,8 +119,15 @@ func MetricsMiddleware() gin.HandlerFunc {
 	}
 }
 
-func MetricsHandler() gin.HandlerFunc {
+func MetricsHandler(token string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
+		if token != "" {
+			provided := bearerToken(ctx)
+			if provided != token {
+				ctx.AbortWithStatus(http.StatusUnauthorized)
+				return
+			}
+		}
 		m := globalMetrics
 		uptime := time.Since(m.startTime).Seconds()
 		total := m.totalRequests.Load()

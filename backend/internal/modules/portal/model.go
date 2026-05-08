@@ -73,6 +73,18 @@ type Webhook struct {
 	UpdatedAt       time.Time  `json:"updatedAt"`
 }
 
+type WebhookDeliveryLog struct {
+	ID             uint64    `json:"id"`
+	WebhookID      uint64    `json:"webhookId"`
+	Event          string    `json:"event"`
+	TargetURL      string    `json:"targetUrl"`
+	ResponseStatus int       `json:"responseStatus"`
+	LatencyMs      int       `json:"latencyMs"`
+	Success        bool      `json:"success"`
+	ErrorMessage   string    `json:"errorMessage,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
+}
+
 type ProfileSettings struct {
 	UserID             uint64    `json:"userId"`
 	DisplayName        string    `json:"displayName"`
@@ -146,6 +158,7 @@ type Repository interface {
 	CreateWebhook(ctx context.Context, item Webhook) (Webhook, error)
 	UpdateWebhook(ctx context.Context, item Webhook) (Webhook, error)
 	ToggleWebhook(ctx context.Context, userID uint64, webhookID uint64, enabled bool) (Webhook, error)
+	ListWebhookDeliveryLogs(ctx context.Context, userID uint64, webhookID uint64, limit int) ([]WebhookDeliveryLog, error)
 	ListDocs(ctx context.Context) ([]DocArticle, error)
 	CreateDoc(ctx context.Context, item DocArticle) (DocArticle, error)
 	UpdateDoc(ctx context.Context, item DocArticle) (DocArticle, error)

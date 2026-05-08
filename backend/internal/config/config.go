@@ -13,6 +13,7 @@ type Config struct {
 	MySQLDSN              string
 	RedisAddr             string
 	JWTSecret             string
+	MetricsToken          string
 	CloudflareAPIBaseURL  string
 	SpaceshipAPIBaseURL   string
 	LegacyMailSyncAPIURL  string
@@ -28,6 +29,7 @@ func MustLoadConfig() Config {
 		MySQLDSN:              envOrDefault("MYSQL_DSN", "root:root@tcp(mysql:3306)/shiro_email?parseTime=true"),
 		RedisAddr:             envOrDefault("REDIS_ADDR", "redis:6379"),
 		JWTSecret:             envOrDefault("JWT_SECRET", "dev-secret"),
+		MetricsToken:          envOrDefault("METRICS_TOKEN", ""),
 		CloudflareAPIBaseURL:  envOrDefault("CLOUDFLARE_API_BASE_URL", "https://api.cloudflare.com/client/v4"),
 		SpaceshipAPIBaseURL:   envOrDefault("SPACESHIP_API_BASE_URL", "https://spaceship.dev/api"),
 		LegacyMailSyncAPIURL:  envOrDefault("LEGACY_MAIL_SYNC_API_URL", ""),

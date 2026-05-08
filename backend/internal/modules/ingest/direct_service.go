@@ -101,9 +101,13 @@ func (s *DirectService) deliverToTargets(ctx context.Context, env InboundEnvelop
 		return StoredInboundMessage{}, mailbox.ErrMailboxNotFound
 	}
 
-	rawBytes, err := io.ReadAll(source)
+	const maxMessageSize = 10 * 1024 * 1024 // 10 MB
+	rawBytes, err := io.ReadAll(io.LimitReader(source, maxMessageSize+1))
 	if err != nil {
 		return StoredInboundMessage{}, err
+	}
+	if len(rawBytes) > maxMessageSize {
+		return StoredInboundMessage{}, fmt.Errorf("message exceeds maximum size of %d bytes", maxMessageSize)
 	}
 
 	parsed, err := ParseInboundMessage(env, bytes.NewReader(rawBytes))

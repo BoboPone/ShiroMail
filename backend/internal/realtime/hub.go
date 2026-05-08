@@ -23,22 +23,39 @@ type client struct {
 }
 
 type Hub struct {
-	mu      sync.RWMutex
-	clients map[*client]bool
+	mu             sync.RWMutex
+	clients        map[*client]bool
+	allowedOrigins []string
+	upgrader       websocket.Upgrader
 }
 
-func NewHub() *Hub {
-	return &Hub{
-		clients: make(map[*client]bool),
+func NewHub(allowedOrigins ...string) *Hub {
+	h := &Hub{
+		clients:        make(map[*client]bool),
+		allowedOrigins: allowedOrigins,
 	}
+	h.upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin:     h.checkOrigin,
+	}
+	return h
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
+func (h *Hub) checkOrigin(r *http.Request) bool {
+	if len(h.allowedOrigins) == 0 {
 		return true
-	},
+	}
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	for _, allowed := range h.allowedOrigins {
+		if origin == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Hub) HandleWS(ctx *gin.Context) {
@@ -53,7 +70,7 @@ func (h *Hub) HandleWS(ctx *gin.Context) {
 		return
 	}
 
-	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
+	conn, err := h.upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
 		slog.Error("websocket upgrade failed", "error", err)
 		return

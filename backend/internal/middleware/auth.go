@@ -47,6 +47,14 @@ func RequireUserOrAPIKey(secret string, authenticator APIKeyAuthenticator, users
 		}
 
 		if claims, err := security.ParseAccessToken(tokenString, secret); err == nil {
+			if users != nil {
+				if user, userErr := users.FindUserByID(ctx.Request.Context(), claims.UserID); userErr == nil {
+					if user.Status == "banned" || user.Status == "disabled" {
+						ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "account suspended"})
+						return
+					}
+				}
+			}
 			setJWTAuthContext(ctx, claims.UserID, claims.Roles)
 			ctx.Next()
 			return
@@ -66,6 +74,10 @@ func RequireUserOrAPIKey(secret string, authenticator APIKeyAuthenticator, users
 		roles := []string{"api_key"}
 		if users != nil {
 			if user, userErr := users.FindUserByID(ctx.Request.Context(), apiKey.UserID); userErr == nil && len(user.Roles) != 0 {
+				if user.Status == "banned" || user.Status == "disabled" {
+					ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "account suspended"})
+					return
+				}
 				roles = append([]string{}, user.Roles...)
 				apiKey.Roles = append([]string{}, user.Roles...)
 			}
@@ -118,4 +130,29 @@ func setJWTAuthContext(ctx *gin.Context, userID uint64, roles []string) {
 	ctx.Set("auth.userID", userID)
 	ctx.Set("auth.roles", roles)
 	ctx.Set("auth.authType", "jwt")
+}
+
+func RequireActiveUser(users UserRoleLookup) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
+		uid, exists := ctx.Get("auth.userID")
+		if !exists {
+			ctx.Next()
+			return
+		}
+		userID, ok := uid.(uint64)
+		if !ok {
+			ctx.Next()
+			return
+		}
+		user, err := users.FindUserByID(ctx.Request.Context(), userID)
+		if err != nil {
+			ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+			return
+		}
+		if user.Status == "banned" || user.Status == "disabled" {
+			ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "account suspended"})
+			return
+		}
+		ctx.Next()
+	}
 }

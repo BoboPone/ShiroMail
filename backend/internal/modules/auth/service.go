@@ -116,6 +116,14 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*AuthRespo
 		}
 	}
 
+	minPasswordLength := 8
+	if settings.Password.MinLength > 0 {
+		minPasswordLength = settings.Password.MinLength
+	}
+	if len(req.Password) < minPasswordLength {
+		return nil, fmt.Errorf("password must be at least %d characters", minPasswordLength)
+	}
+
 	hash, err := security.HashPassword(req.Password)
 	if err != nil {
 		return nil, err
@@ -180,6 +188,9 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*AuthResponse, e
 	if !security.VerifyPassword(user.PasswordHash, req.Password) {
 		return nil, errors.New("invalid credentials")
 	}
+	if user.Status == "banned" || user.Status == "disabled" {
+		return nil, errors.New("account suspended")
+	}
 	if settings, err := system.LoadAuthRuntimeSettings(ctx, s.configRepo); err == nil && settings.Registration.RequireEmailVerification && !user.EmailVerified {
 		pending, challengeErr := s.issueVerificationChallenge(ctx, user, "login")
 		if challengeErr != nil {
@@ -209,6 +220,10 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*AuthRespon
 	user, err := s.repo.FindUserByID(ctx, record.UserID)
 	if err != nil {
 		return nil, err
+	}
+	if user.Status == "banned" || user.Status == "disabled" {
+		_ = s.repo.RevokeRefreshToken(ctx, hash)
+		return nil, errors.New("account suspended")
 	}
 	if err := s.repo.RevokeRefreshToken(ctx, hash); err != nil {
 		return nil, errors.New("invalid refresh token")
@@ -416,6 +431,14 @@ func (s *Service) ChangePassword(ctx context.Context, userID uint64, req ChangeP
 	}
 	if !security.VerifyPassword(user.PasswordHash, req.CurrentPassword) {
 		return errors.New("invalid current password")
+	}
+	settings, _ := system.LoadAuthRuntimeSettings(ctx, s.configRepo)
+	minLen := 8
+	if settings.Password.MinLength > 0 {
+		minLen = settings.Password.MinLength
+	}
+	if len(req.NewPassword) < minLen {
+		return fmt.Errorf("password must be at least %d characters", minLen)
 	}
 	hash, err := security.HashPassword(req.NewPassword)
 	if err != nil {

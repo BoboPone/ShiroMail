@@ -545,3 +545,23 @@ type BalanceEntryRow struct {
 func (BalanceEntryRow) TableName() string {
 	return "user_balance_entries"
 }
+
+type WebhookDeliveryLogRow struct {
+	ID             uint64    `gorm:"column:id;primaryKey;autoIncrement"`
+	WebhookID      uint64    `gorm:"column:webhook_id"`
+	UserID         uint64    `gorm:"column:user_id"`
+	Event          string    `gorm:"column:event"`
+	TargetURL      string    `gorm:"column:target_url"`
+	RequestBody    string    `gorm:"column:request_body"`
+	ResponseStatus int       `gorm:"column:response_status"`
+	ResponseBody   string    `gorm:"column:response_body"`
+	LatencyMs      int       `gorm:"column:latency_ms"`
+	Success        bool      `gorm:"column:success"`
+	ErrorMessage   string    `gorm:"column:error_message"`
+	Attempt        int       `gorm:"column:attempt"`
+	CreatedAt      time.Time `gorm:"column:created_at"`
+}
+
+func (WebhookDeliveryLogRow) TableName() string {
+	return "webhook_delivery_logs"
+}

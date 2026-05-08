@@ -22,6 +22,8 @@ import (
 var ErrInvalidDomainReviewDecision = errors.New("invalid domain review decision")
 var ErrInvalidUserRoles = errors.New("at least one valid role is required")
 var ErrInvalidUserProfile = errors.New("invalid user profile")
+var ErrCannotBanSelf = errors.New("cannot ban your own account")
+var ErrCannotBanAdmin = errors.New("cannot ban an admin account")
 var ErrCannotRemoveOwnAdminRole = errors.New("cannot remove your own admin role")
 var ErrCannotRemoveLastAdminRole = errors.New("cannot remove the last admin role")
 var ErrCannotDeleteOwnAccount = errors.New("cannot delete your own account")
@@ -182,6 +184,9 @@ func (s *Service) UpdateUser(ctx context.Context, actorID uint64, userID uint64,
 	if err != nil {
 		return UserFeedItem{}, err
 	}
+	if updated.Status == "banned" || updated.Status == "disabled" {
+		_ = s.authRepo.RevokeUserRefreshTokens(ctx, userID)
+	}
 	if strings.TrimSpace(input.NewPassword) != "" {
 		passwordHash, hashErr := security.HashPassword(input.NewPassword)
 		if hashErr != nil {
@@ -236,6 +241,44 @@ func (s *Service) UpdateUserRoles(ctx context.Context, actorID uint64, userID ui
 		"username": updated.Username,
 		"roles":    updated.Roles,
 	})
+}
+
+func (s *Service) BanUser(ctx context.Context, actorID uint64, userID uint64, reason string) (UserFeedItem, error) {
+	if actorID == userID {
+		return UserFeedItem{}, ErrCannotBanSelf
+	}
+	user, err := s.authRepo.FindUserByID(ctx, userID)
+	if err != nil {
+		return UserFeedItem{}, err
+	}
+	if containsRole(user.Roles, "admin") {
+		return UserFeedItem{}, ErrCannotBanAdmin
+	}
+	user.Status = "banned"
+	updated, err := s.authRepo.UpdateUser(ctx, user)
+	if err != nil {
+		return UserFeedItem{}, err
+	}
+	_ = s.authRepo.RevokeUserRefreshTokens(ctx, userID)
+	return s.buildUserFeedItem(ctx, actorID, updated, "admin.user.ban", map[string]any{
+		"reason": reason,
+	})
+}
+
+func (s *Service) UnbanUser(ctx context.Context, actorID uint64, userID uint64) (UserFeedItem, error) {
+	user, err := s.authRepo.FindUserByID(ctx, userID)
+	if err != nil {
+		return UserFeedItem{}, err
+	}
+	if user.Status != "banned" {
+		return UserFeedItem{}, ErrInvalidUserProfile
+	}
+	user.Status = "active"
+	updated, err := s.authRepo.UpdateUser(ctx, user)
+	if err != nil {
+		return UserFeedItem{}, err
+	}
+	return s.buildUserFeedItem(ctx, actorID, updated, "admin.user.unban", nil)
 }
 
 func (s *Service) DeleteUser(ctx context.Context, actorID uint64, userID uint64) error {
@@ -1327,7 +1370,7 @@ func containsRole(roles []string, target string) bool {
 
 func isValidUserStatus(status string) bool {
 	switch status {
-	case "active", "pending_verification", "disabled":
+	case "active", "pending_verification", "disabled", "banned":
 		return true
 	default:
 		return false

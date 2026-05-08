@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -57,14 +58,18 @@ type AppState struct {
 	DirectIngest  *ingest.DirectService
 	RedisClient   *redis.Client
 	WSHub         *realtime.Hub
+	DB            *gorm.DB
 }
 
 func MustRunHTTPServer() {
 	cfg := config.MustLoadConfig()
 	logger.Init(cfg.AppEnv)
 
-	if cfg.IsProduction() && cfg.JWTSecret == "dev-secret" {
-		log.Fatal("FATAL: JWT_SECRET must not be 'dev-secret' in production. Set a strong secret via the JWT_SECRET environment variable.")
+	if cfg.IsProduction() {
+		weak := map[string]bool{"dev-secret": true, "change-me-in-production": true, "secret": true, "": true}
+		if weak[cfg.JWTSecret] || len(cfg.JWTSecret) < 32 {
+			log.Fatal("FATAL: JWT_SECRET must be at least 32 characters and not a default value in production.")
+		}
 	}
 	state, err := newRuntimePersistentState(cfg)
 	if err != nil {
@@ -212,11 +217,11 @@ func NewRuntimeAppForTest(cfg config.Config) (*gin.Engine, error) {
 
 func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 	if state.WSHub == nil {
-		state.WSHub = realtime.NewHub()
+		state.WSHub = realtime.NewHub(cfg.CORSAllowedOrigins...)
 	}
 
 	engine := gin.New()
-	engine.Use(gin.Logger(), gin.Recovery(), middleware.MetricsMiddleware(), middleware.AllowBrowserClients(cfg.CORSAllowedOrigins...))
+	engine.Use(gin.Recovery(), middleware.RequestID(), middleware.MetricsMiddleware(), middleware.AllowBrowserClients(cfg.CORSAllowedOrigins...), middleware.AccessLog())
 	engine.GET("/healthz", func(ctx *gin.Context) {
 		checks := gin.H{}
 		healthy := true
@@ -238,7 +243,7 @@ func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 		ctx.JSON(status, checks)
 	})
 	engine.GET("/ws", middleware.RequireAuth(cfg.JWTSecret), state.WSHub.HandleWS)
-	engine.GET("/metrics", middleware.MetricsHandler())
+	engine.GET("/metrics", middleware.MetricsHandler(cfg.MetricsToken))
 
 	authService := auth.NewService(state.AuthRepo, cfg.JWTSecret, state.ConfigRepo)
 	authController := auth.NewController(authService)
@@ -334,23 +339,36 @@ func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 			SpoolProcessed:     snapshot.SpoolProcessed,
 		}, nil
 	})
+	var (
+		cachedStats     system.PublicSiteStats
+		cachedStatsAt   time.Time
+		cachedStatsMu   sync.Mutex
+	)
 	publicStatsProvider := system.PublicSiteStatsFunc(func(ctx context.Context) (system.PublicSiteStats, error) {
+		cachedStatsMu.Lock()
+		defer cachedStatsMu.Unlock()
+		if time.Since(cachedStatsAt) < 30*time.Second {
+			return cachedStats, nil
+		}
 		users, err := state.AuthRepo.ListUsers(ctx)
 		if err != nil {
 			return system.PublicSiteStats{}, err
 		}
-		return system.PublicSiteStats{
+		cachedStats = system.PublicSiteStats{
 			ActiveMailboxCount: state.MailboxRepo.CountActive(ctx),
 			TodayMessageCount:  state.MessageRepo.CountToday(ctx),
 			ActiveDomainCount:  state.DomainRepo.CountActive(ctx),
 			TotalUserCount:     len(users),
 			FailedJobCount:     state.JobRepo.CountFailed(ctx),
 			UpdatedAt:          time.Now().UTC(),
-		}, nil
+		}
+		cachedStatsAt = time.Now()
+		return cachedStats, nil
 	})
 	systemService := system.NewService(state.ConfigRepo, state.JobRepo, state.AuditRepo, spoolList, spoolRetry, smtpMetrics, publicStatsProvider)
 	systemController := system.NewController(systemService)
 	authGuard := middleware.RequireAuth(cfg.JWTSecret)
+	activeUserGuard := middleware.RequireActiveUser(state.AuthRepo)
 	apiKeyGuard := middleware.RequireUserOrAPIKey(cfg.JWTSecret, state.PortalRepo, state.AuthRepo)
 	adminGuard := []gin.HandlerFunc{apiKeyGuard, middleware.RequireRoles("admin")}
 
@@ -558,6 +576,7 @@ func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 	api.POST("/portal/webhooks", authGuard, portalController.CreateWebhook)
 	api.PUT("/portal/webhooks/:id", authGuard, portalController.UpdateWebhook)
 	api.POST("/portal/webhooks/:id/toggle", authGuard, portalController.ToggleWebhook)
+	api.GET("/portal/webhooks/:id/deliveries", authGuard, portalController.ListWebhookDeliveryLogs)
 	api.GET("/portal/domain-providers", authGuard, domainController.ListOwnedProviderAccounts)
 	api.POST("/portal/domain-providers", authGuard, domainController.CreateOwnedProviderAccount)
 	api.PUT("/portal/domain-providers/:id", authGuard, domainController.UpdateOwnedProviderAccount)
@@ -591,6 +610,8 @@ func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 	adminGroup.PUT("/users/:id", adminController.UpdateUser)
 	adminGroup.DELETE("/users/:id", adminController.DeleteUser)
 	adminGroup.PUT("/users/:id/roles", adminController.UpdateUserRoles)
+	adminGroup.POST("/users/:id/ban", adminController.BanUser)
+	adminGroup.POST("/users/:id/unban", adminController.UnbanUser)
 	adminGroup.GET("/domains", adminController.ListDomains)
 	adminGroup.POST("/domains/generate", domainController.GenerateAdmin)
 	adminGroup.GET("/domain-providers", adminController.ListDomainProviders)
@@ -759,6 +780,7 @@ func newRuntimePersistentState(cfg config.Config) (*AppState, error) {
 		AuditRepo:     system.NewMySQLAuditRepository(db),
 		Cache:         cache,
 		RedisClient:   redisClient,
+		DB:            db,
 	}
 
 	state.DirectIngest, state.MailStorage, err = newDirectIngestService(cfg.MailStoragePath, state.MailboxRepo, state.MessageRepo)
@@ -779,7 +801,7 @@ func newRuntimePersistentState(cfg config.Config) (*AppState, error) {
 	}
 
 	state.WSHub = realtime.NewHub()
-	webhookDispatcher := webhook.NewDispatcher(state.PortalRepo)
+	webhookDispatcher := webhook.NewDispatcher(state.PortalRepo, state.DB)
 	messageService := message.NewService(state.MessageRepo, state.MailboxRepo, state.DomainRepo, state.MailStorage, state.Cache)
 	if state.DirectIngest != nil {
 		state.DirectIngest.SetDeliveryCallback(func(userID uint64, mailboxID uint64, mailboxAddress string, subject string) {

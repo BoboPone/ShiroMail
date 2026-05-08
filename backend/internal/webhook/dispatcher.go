@@ -7,10 +7,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"gorm.io/gorm"
+	"shiro-email/backend/internal/database"
 	"shiro-email/backend/internal/modules/portal"
 )
 
@@ -19,8 +22,10 @@ type WebhookRepo interface {
 }
 
 type Dispatcher struct {
-	repo   WebhookRepo
-	client *http.Client
+	repo    WebhookRepo
+	db      *gorm.DB
+	client  *http.Client
+	sem     chan struct{}
 }
 
 type Payload struct {
@@ -29,12 +34,31 @@ type Payload struct {
 	Data      any    `json:"data"`
 }
 
-func NewDispatcher(repo WebhookRepo) *Dispatcher {
+type DeliveryLog struct {
+	WebhookID      uint64
+	UserID         uint64
+	Event          string
+	TargetURL      string
+	RequestBody    string
+	ResponseStatus int
+	ResponseBody   string
+	LatencyMs      int
+	Success        bool
+	ErrorMessage   string
+	Attempt        int
+}
+
+const maxConcurrentDeliveries = 16
+const maxResponseBodyLog = 1024
+
+func NewDispatcher(repo WebhookRepo, db *gorm.DB) *Dispatcher {
 	return &Dispatcher{
 		repo: repo,
+		db:   db,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		sem: make(chan struct{}, maxConcurrentDeliveries),
 	}
 }
 
@@ -61,36 +85,85 @@ func (d *Dispatcher) Dispatch(ctx context.Context, userID uint64, event string, 
 		if !wh.Enabled || !matchesEvent(wh.Events, event) {
 			continue
 		}
-		go d.deliver(ctx, wh, body)
+		wh := wh
+		d.sem <- struct{}{}
+		go func() {
+			defer func() { <-d.sem }()
+			d.deliverWithLog(userID, event, wh, body)
+		}()
 	}
 }
 
-func (d *Dispatcher) deliver(ctx context.Context, wh portal.Webhook, body []byte) {
+func (d *Dispatcher) deliverWithLog(userID uint64, event string, wh portal.Webhook, body []byte) {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	log := DeliveryLog{
+		WebhookID:   wh.ID,
+		UserID:      userID,
+		Event:       event,
+		TargetURL:   wh.TargetURL,
+		RequestBody: truncate(string(body), 4096),
+		Attempt:     1,
+	}
+
+	start := time.Now()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, wh.TargetURL, bytes.NewReader(body))
 	if err != nil {
-		slog.Error("webhook: failed to create request", "webhookId", wh.ID, "error", err)
+		log.ErrorMessage = err.Error()
+		d.saveLog(log)
 		return
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "ShiroEmail-Webhook/1.0")
-
 	if wh.SecretPreview != "" {
-		signature := signPayload(body, wh.SecretPreview)
-		req.Header.Set("X-Webhook-Signature", signature)
+		req.Header.Set("X-Webhook-Signature", signPayload(body, wh.SecretPreview))
 	}
 
 	resp, err := d.client.Do(req)
+	log.LatencyMs = int(time.Since(start).Milliseconds())
+
 	if err != nil {
+		log.ErrorMessage = err.Error()
+		d.saveLog(log)
 		slog.Warn("webhook: delivery failed", "webhookId", wh.ID, "url", wh.TargetURL, "error", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 400 {
+	log.ResponseStatus = resp.StatusCode
+	log.Success = resp.StatusCode >= 200 && resp.StatusCode < 300
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyLog))
+	log.ResponseBody = string(respBody)
+
+	d.saveLog(log)
+
+	if !log.Success {
 		slog.Warn("webhook: delivery returned error", "webhookId", wh.ID, "status", resp.StatusCode)
-	} else {
-		slog.Debug("webhook: delivered", "webhookId", wh.ID, "status", resp.StatusCode)
+	}
+}
+
+func (d *Dispatcher) saveLog(log DeliveryLog) {
+	if d.db == nil {
+		return
+	}
+	row := database.WebhookDeliveryLogRow{
+		WebhookID:      log.WebhookID,
+		UserID:         log.UserID,
+		Event:          log.Event,
+		TargetURL:      log.TargetURL,
+		RequestBody:    log.RequestBody,
+		ResponseStatus: log.ResponseStatus,
+		ResponseBody:   log.ResponseBody,
+		LatencyMs:      log.LatencyMs,
+		Success:        log.Success,
+		ErrorMessage:   log.ErrorMessage,
+		Attempt:        log.Attempt,
+	}
+	if err := d.db.Create(&row).Error; err != nil {
+		slog.Error("webhook: failed to save delivery log", "webhookId", log.WebhookID, "error", err)
 	}
 }
 
@@ -107,4 +180,11 @@ func matchesEvent(subscribed []string, event string) bool {
 		}
 	}
 	return false
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max]
 }

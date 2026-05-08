@@ -223,18 +223,7 @@ func (s *DirectService) PeekNextSpool(ctx context.Context) (SpoolItem, error) {
 	if s.spool == nil {
 		return SpoolItem{}, ErrSpoolItemNotFound
 	}
-
-	items, err := s.spool.List(ctx)
-	if err != nil {
-		return SpoolItem{}, err
-	}
-	now := time.Now().UTC()
-	for _, item := range items {
-		if item.Status == SpoolStatusPending && !item.NextAttemptAt.After(now) {
-			return item, nil
-		}
-	}
-	return SpoolItem{}, ErrSpoolItemNotFound
+	return s.spool.ClaimNext(ctx)
 }
 
 func (s *DirectService) ListSpool(ctx context.Context) ([]SpoolItem, error) {

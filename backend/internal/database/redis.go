@@ -19,8 +19,14 @@ func NewRedis(addr string) *redis.Client {
 	}
 
 	return redis.NewClient(&redis.Options{
-		Addr: addr,
-		DB:   db,
+		Addr:         addr,
+		DB:           db,
+		PoolSize:     20,
+		MinIdleConns: 5,
+		MaxRetries:   3,
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
 	})
 }
 

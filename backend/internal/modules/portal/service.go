@@ -254,6 +254,10 @@ func (s *Service) ToggleWebhook(ctx context.Context, userID uint64, webhookID ui
 	return s.repo.ToggleWebhook(ctx, userID, webhookID, enabled)
 }
 
+func (s *Service) ListWebhookDeliveryLogs(ctx context.Context, userID uint64, webhookID uint64) ([]WebhookDeliveryLog, error) {
+	return s.repo.ListWebhookDeliveryLogs(ctx, userID, webhookID, 50)
+}
+
 func (s *Service) ListDocs(ctx context.Context) ([]DocArticle, error) {
 	return s.repo.ListDocs(ctx)
 }
