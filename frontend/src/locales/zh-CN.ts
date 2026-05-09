@@ -451,8 +451,12 @@ const translation = {
       },
     },
   },
+  webhooks: {
+    deliveryLogsTitle: "投递日志",
+    deliveryLogsEmpty: "暂无投递记录",
+    deliveryLogsEmptyHint: "当 Webhook 触发投递后，日志会显示在这里。",
+  },
   settings: {
-    title: "账户设置",
     description: "更新展示名称、语言偏好与控制台刷新频率。",
     loginUsername: "登录账号",
     displayName: "显示名称",

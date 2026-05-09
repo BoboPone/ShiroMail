@@ -472,8 +472,12 @@ const translation = {
       },
     },
   },
+  webhooks: {
+    deliveryLogsTitle: "Delivery Logs",
+    deliveryLogsEmpty: "No delivery logs yet",
+    deliveryLogsEmptyHint: "When a webhook fires, delivery logs will appear here.",
+  },
   settings: {
-    title: "Settings",
     description:
       "Update the display name, language preference, and refresh cadence for the console.",
     loginUsername: "Login username",

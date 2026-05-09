@@ -764,6 +764,23 @@ export async function toggleWebhook(webhookId: number, enabled: boolean) {
   return data;
 }
 
+export type WebhookDeliveryLog = {
+  id: number;
+  webhookId: number;
+  event: string;
+  targetUrl: string;
+  responseStatus: number;
+  latencyMs: number;
+  success: boolean;
+  errorMessage?: string;
+  createdAt: string;
+};
+
+export async function fetchWebhookDeliveries(webhookId: number) {
+  const { data } = await http.get<{ items: WebhookDeliveryLog[] }>(`/portal/webhooks/${webhookId}/deliveries`);
+  return data.items ?? [];
+}
+
 export async function fetchDocs() {
   const { data } = await http.get<{ items: DocArticle[] }>("/portal/docs");
   return data.items;
