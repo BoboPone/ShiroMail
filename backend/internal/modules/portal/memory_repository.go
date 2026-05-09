@@ -355,6 +355,10 @@ func (r *MemoryRepository) ListWebhookDeliveryLogs(_ context.Context, _ uint64, 
 	return nil, nil
 }
 
+func (r *MemoryRepository) GetWebhookDeliveryLog(_ context.Context, _ uint64, _ uint64) (WebhookDeliveryLog, error) {
+	return WebhookDeliveryLog{}, ErrNotFound
+}
+
 func (r *MemoryRepository) BalanceSum(_ context.Context, userID uint64) int64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

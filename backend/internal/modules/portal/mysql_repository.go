@@ -319,6 +319,25 @@ func (r *MySQLRepository) ListWebhookDeliveryLogs(ctx context.Context, userID ui
 	return items, nil
 }
 
+func (r *MySQLRepository) GetWebhookDeliveryLog(ctx context.Context, userID uint64, deliveryID uint64) (WebhookDeliveryLog, error) {
+	var row database.WebhookDeliveryLogRow
+	if err := r.db.WithContext(ctx).Where("id = ? AND user_id = ?", deliveryID, userID).First(&row).Error; err != nil {
+		return WebhookDeliveryLog{}, err
+	}
+	return WebhookDeliveryLog{
+		ID:             row.ID,
+		WebhookID:      row.WebhookID,
+		Event:          row.Event,
+		TargetURL:      row.TargetURL,
+		RequestBody:    row.RequestBody,
+		ResponseStatus: row.ResponseStatus,
+		LatencyMs:      row.LatencyMs,
+		Success:        row.Success,
+		ErrorMessage:   row.ErrorMessage,
+		CreatedAt:      row.CreatedAt,
+	}, nil
+}
+
 func (r *MySQLRepository) ListDocs(ctx context.Context) ([]DocArticle, error) {
 	var rows []database.DocArticleRow
 	if err := r.db.WithContext(ctx).Order("updated_at DESC, created_at DESC, id DESC").Find(&rows).Error; err != nil {

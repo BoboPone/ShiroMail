@@ -17,17 +17,19 @@ type MySQLRepository struct {
 }
 
 type mailboxRecord struct {
-	ID            uint64    `gorm:"column:id"`
-	UserID        uint64    `gorm:"column:user_id"`
-	DomainID      uint64    `gorm:"column:domain_id"`
-	Domain        string    `gorm:"column:domain"`
-	LocalPart     string    `gorm:"column:local_part"`
-	Address       string    `gorm:"column:address"`
-	Status        string    `gorm:"column:status"`
-	ExpiresAt     time.Time `gorm:"column:expires_at"`
-	RetentionDays int       `gorm:"column:retention_days"`
-	CreatedAt     time.Time `gorm:"column:created_at"`
-	UpdatedAt     time.Time `gorm:"column:updated_at"`
+	ID              uint64    `gorm:"column:id"`
+	UserID          uint64    `gorm:"column:user_id"`
+	DomainID        uint64    `gorm:"column:domain_id"`
+	Domain          string    `gorm:"column:domain"`
+	LocalPart       string    `gorm:"column:local_part"`
+	Address         string    `gorm:"column:address"`
+	Status          string    `gorm:"column:status"`
+	ExpiresAt       time.Time `gorm:"column:expires_at"`
+	RetentionDays   int       `gorm:"column:retention_days"`
+	ForwardTo       string    `gorm:"column:forward_to"`
+	ForwardKeepCopy bool      `gorm:"column:forward_keep_copy"`
+	CreatedAt       time.Time `gorm:"column:created_at"`
+	UpdatedAt       time.Time `gorm:"column:updated_at"`
 }
 
 func NewMySQLRepository(db *gorm.DB) *MySQLRepository {
@@ -198,16 +200,18 @@ func (r *MySQLRepository) Update(ctx context.Context, item Mailbox) (Mailbox, er
 		Model(&database.MailboxRow{}).
 		Where("id = ? AND user_id = ?", item.ID, item.UserID).
 		Updates(map[string]any{
-			"domain_id":      item.DomainID,
-			"local_part":     item.LocalPart,
-			"address":        item.Address,
-			"status":         item.Status,
-			"expires_at":     item.ExpiresAt,
-			"retention_days": item.RetentionDays,
-			"updated_at":     item.UpdatedAt,
-			"created_at":     item.CreatedAt,
-			"is_favorite":    false,
-			"source":         "manual",
+			"domain_id":         item.DomainID,
+			"local_part":        item.LocalPart,
+			"address":           item.Address,
+			"status":            item.Status,
+			"expires_at":        item.ExpiresAt,
+			"retention_days":    item.RetentionDays,
+			"forward_to":        item.ForwardTo,
+			"forward_keep_copy": item.ForwardKeepCopy,
+			"updated_at":        item.UpdatedAt,
+			"created_at":        item.CreatedAt,
+			"is_favorite":       false,
+			"source":            "manual",
 		})
 	if result.Error != nil {
 		return Mailbox{}, result.Error
@@ -234,7 +238,7 @@ func (r *MySQLRepository) list(ctx context.Context, where string, order string, 
 	query := r.db.WithContext(ctx).
 		Table("mailboxes").
 		Select(
-			"mailboxes.id, mailboxes.user_id, mailboxes.domain_id, COALESCE(domains.domain, SUBSTRING_INDEX(mailboxes.address, '@', -1)) AS domain, mailboxes.local_part, mailboxes.address, mailboxes.status, mailboxes.expires_at, mailboxes.retention_days, mailboxes.created_at, mailboxes.updated_at",
+			"mailboxes.id, mailboxes.user_id, mailboxes.domain_id, COALESCE(domains.domain, SUBSTRING_INDEX(mailboxes.address, '@', -1)) AS domain, mailboxes.local_part, mailboxes.address, mailboxes.status, mailboxes.expires_at, mailboxes.retention_days, mailboxes.forward_to, mailboxes.forward_keep_copy, mailboxes.created_at, mailboxes.updated_at",
 		).
 		Joins("LEFT JOIN domains ON domains.id = mailboxes.domain_id").
 		Where(where, args...).
@@ -247,17 +251,19 @@ func (r *MySQLRepository) list(ctx context.Context, where string, order string, 
 	items := make([]Mailbox, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, Mailbox{
-			ID:            row.ID,
-			UserID:        row.UserID,
-			DomainID:      row.DomainID,
-			Domain:        row.Domain,
-			LocalPart:     row.LocalPart,
-			Address:       row.Address,
-			Status:        row.Status,
-			ExpiresAt:     row.ExpiresAt,
-			RetentionDays: row.RetentionDays,
-			CreatedAt:     row.CreatedAt,
-			UpdatedAt:     row.UpdatedAt,
+			ID:              row.ID,
+			UserID:          row.UserID,
+			DomainID:        row.DomainID,
+			Domain:          row.Domain,
+			LocalPart:       row.LocalPart,
+			Address:         row.Address,
+			Status:          row.Status,
+			ExpiresAt:       row.ExpiresAt,
+			RetentionDays:   row.RetentionDays,
+			ForwardTo:       row.ForwardTo,
+			ForwardKeepCopy: row.ForwardKeepCopy,
+			CreatedAt:       row.CreatedAt,
+			UpdatedAt:       row.UpdatedAt,
 		})
 	}
 	return items, nil

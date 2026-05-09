@@ -260,6 +260,32 @@ func (s *Service) ListWebhookDeliveryLogs(ctx context.Context, userID uint64, we
 	return s.repo.ListWebhookDeliveryLogs(ctx, userID, webhookID, 50)
 }
 
+func (s *Service) RetryWebhookDelivery(ctx context.Context, userID uint64, deliveryID uint64, retrier WebhookRetrier) (WebhookTestResult, error) {
+	log, err := s.repo.GetWebhookDeliveryLog(ctx, userID, deliveryID)
+	if err != nil {
+		return WebhookTestResult{}, err
+	}
+	webhooks, err := s.repo.ListWebhooksByUser(ctx, userID)
+	if err != nil {
+		return WebhookTestResult{}, err
+	}
+	var targetWebhook Webhook
+	found := false
+	for _, wh := range webhooks {
+		if wh.ID == log.WebhookID {
+			targetWebhook = wh
+			found = true
+			break
+		}
+	}
+	if !found {
+		return WebhookTestResult{}, ErrNotFound
+	}
+	body := []byte(log.RequestBody)
+	result := retrier.RetryDeliver(ctx, userID, targetWebhook, body)
+	return result, nil
+}
+
 func (s *Service) TestWebhook(ctx context.Context, userID uint64, webhookID uint64) (Webhook, error) {
 	items, err := s.repo.ListWebhooksByUser(ctx, userID)
 	if err != nil {

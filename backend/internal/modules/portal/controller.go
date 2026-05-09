@@ -21,9 +21,14 @@ type WebhookTester interface {
 	TestDeliver(ctx context.Context, userID uint64, wh Webhook) WebhookTestResult
 }
 
+type WebhookRetrier interface {
+	RetryDeliver(ctx context.Context, userID uint64, wh Webhook, originalBody []byte) WebhookTestResult
+}
+
 type Controller struct {
-	service       *Service
-	webhookTester WebhookTester
+	service        *Service
+	webhookTester  WebhookTester
+	webhookRetrier WebhookRetrier
 }
 
 func NewController(service *Service, extras ...any) *Controller {
@@ -32,6 +37,8 @@ func NewController(service *Service, extras ...any) *Controller {
 		switch v := extra.(type) {
 		case WebhookTester:
 			c.webhookTester = v
+		case WebhookRetrier:
+			c.webhookRetrier = v
 		}
 	}
 	return c
@@ -291,6 +298,29 @@ func (c *Controller) TestWebhook(ctx *gin.Context) {
 		return
 	}
 	result := c.webhookTester.TestDeliver(ctx.Request.Context(), userID, wh)
+	ctx.JSON(http.StatusOK, result)
+}
+
+func (c *Controller) RetryWebhookDelivery(ctx *gin.Context) {
+	userID, ok := authUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+	deliveryID, ok := parseParamID(ctx, "id")
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid delivery id"})
+		return
+	}
+	if c.webhookRetrier == nil {
+		ctx.JSON(http.StatusServiceUnavailable, gin.H{"message": "webhook dispatcher not available"})
+		return
+	}
+	result, err := c.service.RetryWebhookDelivery(ctx, userID, deliveryID, c.webhookRetrier)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"message": "delivery log not found"})
+		return
+	}
 	ctx.JSON(http.StatusOK, result)
 }
 

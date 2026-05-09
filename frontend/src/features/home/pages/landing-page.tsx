@@ -255,6 +255,90 @@ export function LandingPage() {
         </div>
       </PublicSection>
 
+      <PublicSection
+        description={t("landing.sections.demoDescription")}
+        eyebrow={t("landing.sections.demoEyebrow")}
+        title={t("landing.sections.demoTitle")}
+      >
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="mx-auto max-w-4xl overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+            <div className="flex items-center gap-2 border-b border-border/60 bg-muted/30 px-4 py-2.5">
+              <div className="flex gap-1.5">
+                <span className="size-2.5 rounded-full bg-red-400/70" />
+                <span className="size-2.5 rounded-full bg-yellow-400/70" />
+                <span className="size-2.5 rounded-full bg-green-400/70" />
+              </div>
+              <div className="ml-3 flex-1 rounded-md border border-border/40 bg-background/60 px-3 py-1 text-[11px] text-muted-foreground">
+                {sampleDomain}/dashboard
+              </div>
+            </div>
+
+            <div className="flex min-h-[280px] sm:min-h-[320px]">
+              <div className="hidden w-[180px] shrink-0 border-r border-border/40 bg-muted/20 p-3 sm:block">
+                <div className="space-y-2">
+                  <div className="h-3 w-20 rounded bg-foreground/10" />
+                  <div className="h-2.5 w-full rounded bg-primary/20" />
+                  <div className="h-2.5 w-24 rounded bg-muted-foreground/10" />
+                  <div className="h-2.5 w-28 rounded bg-muted-foreground/10" />
+                  <div className="h-2.5 w-20 rounded bg-muted-foreground/10" />
+                  <div className="mt-4 h-3 w-16 rounded bg-foreground/10" />
+                  <div className="h-2.5 w-24 rounded bg-muted-foreground/10" />
+                  <div className="h-2.5 w-28 rounded bg-muted-foreground/10" />
+                </div>
+              </div>
+
+              <div className="flex-1 bg-gradient-to-br from-background via-background to-muted/30 p-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-lg border border-border/40 bg-card p-3">
+                    <div className="h-2 w-12 rounded bg-muted-foreground/20" />
+                    <div className="mt-2 h-5 w-8 rounded bg-primary/30" />
+                  </div>
+                  <div className="rounded-lg border border-border/40 bg-card p-3">
+                    <div className="h-2 w-14 rounded bg-muted-foreground/20" />
+                    <div className="mt-2 h-5 w-10 rounded bg-green-500/25" />
+                  </div>
+                  <div className="rounded-lg border border-border/40 bg-card p-3">
+                    <div className="h-2 w-10 rounded bg-muted-foreground/20" />
+                    <div className="mt-2 h-5 w-6 rounded bg-orange-500/25" />
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-lg border border-border/40 bg-card p-3">
+                  <div className="mb-3 h-2.5 w-20 rounded bg-foreground/10" />
+                  <div className="flex h-[80px] items-end gap-1.5">
+                    <div className="h-[30%] flex-1 rounded-sm bg-primary/20" />
+                    <div className="h-[55%] flex-1 rounded-sm bg-primary/30" />
+                    <div className="h-[40%] flex-1 rounded-sm bg-primary/20" />
+                    <div className="h-[70%] flex-1 rounded-sm bg-primary/40" />
+                    <div className="h-[85%] flex-1 rounded-sm bg-primary/50" />
+                    <div className="h-[60%] flex-1 rounded-sm bg-primary/30" />
+                    <div className="h-[45%] flex-1 rounded-sm bg-primary/25" />
+                  </div>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-card px-3 py-2">
+                    <div className="size-2 rounded-full bg-green-500/50" />
+                    <div className="h-2 w-32 rounded bg-muted-foreground/15" />
+                    <div className="ml-auto h-2 w-16 rounded bg-muted-foreground/10" />
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-card px-3 py-2">
+                    <div className="size-2 rounded-full bg-blue-500/50" />
+                    <div className="h-2 w-40 rounded bg-muted-foreground/15" />
+                    <div className="ml-auto h-2 w-12 rounded bg-muted-foreground/10" />
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-card px-3 py-2">
+                    <div className="size-2 rounded-full bg-primary/50" />
+                    <div className="h-2 w-28 rounded bg-muted-foreground/15" />
+                    <div className="ml-auto h-2 w-14 rounded bg-muted-foreground/10" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </PublicSection>
+
       <div className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
         <PublicInfoCard
           description={t("landing.sections.workflowDescription")}

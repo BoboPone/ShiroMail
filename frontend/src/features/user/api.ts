@@ -109,6 +109,8 @@ export type MailboxItem = {
   status: string;
   expiresAt: string;
   retentionDays: number;
+  forwardTo: string;
+  forwardKeepCopy: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -727,6 +729,11 @@ export async function releaseMailbox(mailboxId: number) {
   return data;
 }
 
+export async function updateMailboxForwarding(mailboxId: number, input: { forwardTo: string; forwardKeepCopy: boolean }) {
+  const { data } = await http.put<MailboxItem>(`/mailboxes/${mailboxId}/forwarding`, input);
+  return data;
+}
+
 export async function batchDeleteMessages(ids: number[]) {
   const { data } = await http.post<{ ok: boolean }>("/messages/batch-delete", { ids });
   return data;
@@ -825,6 +832,11 @@ export type WebhookTestResult = {
 
 export async function testWebhook(webhookId: number) {
   const { data } = await http.post<WebhookTestResult>(`/portal/webhooks/${webhookId}/test`);
+  return data;
+}
+
+export async function retryWebhookDelivery(deliveryId: number) {
+  const { data } = await http.post<WebhookTestResult>(`/portal/webhooks/deliveries/${deliveryId}/retry`);
   return data;
 }
 

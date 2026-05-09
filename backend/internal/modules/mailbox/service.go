@@ -194,6 +194,23 @@ func (s *Service) ExtendMailbox(ctx context.Context, userID uint64, mailboxID ui
 	return updated, err
 }
 
+func (s *Service) UpdateForwarding(ctx context.Context, userID uint64, mailboxID uint64, req UpdateForwardingRequest) (Mailbox, error) {
+	item, err := s.repo.FindByUserAndID(ctx, userID, mailboxID)
+	if err != nil {
+		return Mailbox{}, err
+	}
+
+	item.ForwardTo = strings.TrimSpace(req.ForwardTo)
+	item.ForwardKeepCopy = req.ForwardKeepCopy
+	item.UpdatedAt = time.Now()
+
+	updated, err := s.repo.Update(ctx, item)
+	if err == nil {
+		s.invalidateCaches(ctx, userID)
+	}
+	return updated, err
+}
+
 func (s *Service) ReleaseMailbox(ctx context.Context, userID uint64, mailboxID uint64, apiKeys ...portal.APIKey) (Mailbox, error) {
 	item, err := s.repo.FindByUserAndID(ctx, userID, mailboxID)
 	if err != nil {

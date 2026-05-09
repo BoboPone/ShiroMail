@@ -214,19 +214,21 @@ func (DNSChangeOperationRow) TableName() string {
 }
 
 type MailboxRow struct {
-	ID            uint64     `gorm:"column:id;primaryKey;autoIncrement"`
-	UserID        uint64     `gorm:"column:user_id"`
-	DomainID      uint64     `gorm:"column:domain_id"`
-	LocalPart     string     `gorm:"column:local_part"`
-	Address       string     `gorm:"column:address"`
-	Status        string     `gorm:"column:status"`
-	ExpiresAt     time.Time  `gorm:"column:expires_at"`
-	IsFavorite    bool       `gorm:"column:is_favorite"`
-	Source        string     `gorm:"column:source"`
-	RetentionDays int        `gorm:"column:retention_days"`
-	LastMessageAt *time.Time `gorm:"column:last_message_at"`
-	CreatedAt     time.Time  `gorm:"column:created_at"`
-	UpdatedAt     time.Time  `gorm:"column:updated_at"`
+	ID              uint64     `gorm:"column:id;primaryKey;autoIncrement"`
+	UserID          uint64     `gorm:"column:user_id"`
+	DomainID        uint64     `gorm:"column:domain_id"`
+	LocalPart       string     `gorm:"column:local_part"`
+	Address         string     `gorm:"column:address"`
+	Status          string     `gorm:"column:status"`
+	ExpiresAt       time.Time  `gorm:"column:expires_at"`
+	IsFavorite      bool       `gorm:"column:is_favorite"`
+	Source          string     `gorm:"column:source"`
+	RetentionDays   int        `gorm:"column:retention_days"`
+	ForwardTo       string     `gorm:"column:forward_to"`
+	ForwardKeepCopy bool       `gorm:"column:forward_keep_copy"`
+	LastMessageAt   *time.Time `gorm:"column:last_message_at"`
+	CreatedAt       time.Time  `gorm:"column:created_at"`
+	UpdatedAt       time.Time  `gorm:"column:updated_at"`
 }
 
 func (MailboxRow) TableName() string {

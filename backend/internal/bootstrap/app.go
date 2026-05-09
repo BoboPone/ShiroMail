@@ -272,10 +272,12 @@ func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 	messageController := message.NewController(messageService, state.DirectIngest)
 	portalService := portal.NewService(state.PortalRepo, state.AuthRepo)
 	var webhookTester portal.WebhookTester
+	var webhookRetrier portal.WebhookRetrier
 	if state.WebhookDispatcher != nil {
 		webhookTester = &webhookTesterAdapter{dispatcher: state.WebhookDispatcher}
+		webhookRetrier = &webhookRetrierAdapter{dispatcher: state.WebhookDispatcher}
 	}
-	portalController := portal.NewController(portalService, webhookTester)
+	portalController := portal.NewController(portalService, webhookTester, webhookRetrier)
 	adminService := admin.NewService(state.AuthRepo, state.DomainRepo, domainService, state.MailboxRepo, state.MessageRepo, messageService, state.PortalRepo, state.JobRepo, state.AuditRepo, state.Cache)
 	adminController := admin.NewController(adminService)
 	ruleService := rule.NewService(state.RuleRepo, state.AuditRepo)
@@ -621,6 +623,7 @@ func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 	api.POST("/mailboxes", mailboxWriteRL, apiKeyGuard, middleware.RequireAPIScope("mailboxes.write"), mailboxController.Create)
 	api.POST("/mailboxes/:mailboxId/extend", mailboxWriteRL, apiKeyGuard, middleware.RequireAPIScope("mailboxes.write"), mailboxController.Extend)
 	api.POST("/mailboxes/:mailboxId/release", mailboxWriteRL, apiKeyGuard, middleware.RequireAPIScope("mailboxes.write"), mailboxController.Release)
+	api.PUT("/mailboxes/:mailboxId/forwarding", mailboxWriteRL, authGuard, mailboxController.UpdateForwarding)
 	api.GET("/mailboxes/:mailboxId/messages", apiKeyGuard, middleware.RequireAPIScope("messages.read"), messageController.ListByMailbox)
 	api.GET("/mailboxes/:mailboxId/messages/:id", apiKeyGuard, middleware.RequireAPIScope("messages.read"), messageController.Detail)
 	api.GET("/mailboxes/:mailboxId/messages/:id/extractions", apiKeyGuard, middleware.RequireAPIScope("messages.read"), extractorController.ListMessageExtractions)
@@ -644,6 +647,7 @@ func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 	api.POST("/portal/webhooks/:id/toggle", authGuard, portalController.ToggleWebhook)
 	api.GET("/portal/webhooks/:id/deliveries", authGuard, portalController.ListWebhookDeliveryLogs)
 	api.POST("/portal/webhooks/:id/test", authGuard, portalController.TestWebhook)
+	api.POST("/portal/webhooks/deliveries/:id/retry", authGuard, portalController.RetryWebhookDelivery)
 	api.GET("/portal/domain-providers", authGuard, domainController.ListOwnedProviderAccounts)
 	api.POST("/portal/domain-providers", authGuard, domainController.CreateOwnedProviderAccount)
 	api.PUT("/portal/domain-providers/:id", authGuard, domainController.UpdateOwnedProviderAccount)
@@ -889,6 +893,15 @@ func newRuntimePersistentState(cfg config.Config) (*AppState, error) {
 				"mailbox": mailboxAddress,
 				"subject": subject,
 			})
+		})
+		state.DirectIngest.SetForwardingCallback(func(ctx context.Context, mailboxAddress string, forwardTo string, subject string, rawBytes []byte) {
+			// TODO: implement outbound SMTP sending for forwarding
+			slog.Info("forwarding message",
+				"from_mailbox", mailboxAddress,
+				"forward_to", forwardTo,
+				"subject", subject,
+				"size_bytes", len(rawBytes),
+			)
 		})
 	}
 
@@ -1259,6 +1272,21 @@ type webhookTesterAdapter struct {
 
 func (a *webhookTesterAdapter) TestDeliver(ctx context.Context, userID uint64, wh portal.Webhook) portal.WebhookTestResult {
 	result := a.dispatcher.TestDeliver(ctx, userID, wh)
+	return portal.WebhookTestResult{
+		Success:        result.Success,
+		ResponseStatus: result.ResponseStatus,
+		ResponseBody:   result.ResponseBody,
+		LatencyMs:      result.LatencyMs,
+		ErrorMessage:   result.ErrorMessage,
+	}
+}
+
+type webhookRetrierAdapter struct {
+	dispatcher *webhook.Dispatcher
+}
+
+func (a *webhookRetrierAdapter) RetryDeliver(ctx context.Context, userID uint64, wh portal.Webhook, originalBody []byte) portal.WebhookTestResult {
+	result := a.dispatcher.RetryDeliver(ctx, userID, wh, originalBody)
 	return portal.WebhookTestResult{
 		Success:        result.Success,
 		ResponseStatus: result.ResponseStatus,

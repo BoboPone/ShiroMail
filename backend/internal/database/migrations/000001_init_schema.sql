@@ -482,3 +482,6 @@ CREATE INDEX idx_inbound_message_spool_status_id ON inbound_message_spool (statu
 CREATE FULLTEXT INDEX ft_messages_search ON messages (from_addr, subject, text_preview);
 
 ALTER TABLE mailboxes ADD COLUMN retention_days INT NOT NULL DEFAULT 0;
+
+ALTER TABLE mailboxes ADD COLUMN forward_to VARCHAR(320) NOT NULL DEFAULT '';
+ALTER TABLE mailboxes ADD COLUMN forward_keep_copy BOOLEAN NOT NULL DEFAULT TRUE;

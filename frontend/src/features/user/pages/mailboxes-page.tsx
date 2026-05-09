@@ -38,6 +38,7 @@ import {
   releaseMailbox,
 } from "../api";
 import { MailboxCreateForm } from "../components/mailbox-create-form";
+import { MailboxForwardingSettings } from "../components/mailbox-forwarding-settings";
 import { MailboxList } from "../components/mailbox-list";
 import { MailboxMessageDetail } from "../components/mailbox-message-detail";
 import { useMessageMutations } from "../hooks/use-message-mutations";
@@ -520,6 +521,10 @@ export function UserMailboxPage() {
             formatDate={formatDate}
             formatRemainingHours={formatRemainingHours}
           />
+
+          {selectedMailbox && (
+            <MailboxForwardingSettings mailbox={selectedMailbox} />
+          )}
         </div>
 
         <MailboxMessageDetail

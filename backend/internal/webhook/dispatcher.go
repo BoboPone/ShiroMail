@@ -137,6 +137,60 @@ func (d *Dispatcher) TestDeliver(ctx context.Context, userID uint64, wh portal.W
 	}
 }
 
+func (d *Dispatcher) RetryDeliver(ctx context.Context, userID uint64, wh portal.Webhook, originalBody []byte) TestResult {
+	log := DeliveryLog{
+		WebhookID:   wh.ID,
+		UserID:      userID,
+		Event:       "retry",
+		TargetURL:   wh.TargetURL,
+		RequestBody: truncate(string(originalBody), 4096),
+		Attempt:     1,
+	}
+
+	start := time.Now()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, wh.TargetURL, bytes.NewReader(originalBody))
+	if err != nil {
+		log.ErrorMessage = err.Error()
+		d.saveLog(log)
+		return TestResult{ErrorMessage: err.Error()}
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "ShiroEmail-Webhook/1.0")
+	req.Header.Set("X-Webhook-Retry", "true")
+	if wh.SecretPreview != "" {
+		req.Header.Set("X-Webhook-Signature", signPayload(originalBody, wh.SecretPreview))
+	}
+
+	resp, err := d.client.Do(req)
+	log.LatencyMs = int(time.Since(start).Milliseconds())
+
+	if err != nil {
+		log.ErrorMessage = err.Error()
+		d.saveLog(log)
+		return TestResult{
+			ErrorMessage: err.Error(),
+			LatencyMs:    log.LatencyMs,
+		}
+	}
+	defer resp.Body.Close()
+
+	log.ResponseStatus = resp.StatusCode
+	log.Success = resp.StatusCode >= 200 && resp.StatusCode < 300
+
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodyLog))
+	log.ResponseBody = string(respBody)
+
+	d.saveLog(log)
+
+	return TestResult{
+		Success:        log.Success,
+		ResponseStatus: resp.StatusCode,
+		ResponseBody:   log.ResponseBody,
+		LatencyMs:      log.LatencyMs,
+	}
+}
+
 func (d *Dispatcher) Dispatch(ctx context.Context, userID uint64, event string, data any) {
 	webhooks, err := d.repo.ListWebhooksByUser(ctx, userID)
 	if err != nil {

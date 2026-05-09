@@ -18,6 +18,8 @@ type InboundStore interface {
 	StoreInbound(ctx context.Context, mailboxID uint64, item StoredInboundMessage) error
 }
 
+type ForwardingCallback func(ctx context.Context, mailboxAddress string, forwardTo string, subject string, rawBytes []byte)
+
 type DeliveryCallback func(mailboxUserID uint64, mailboxID uint64, mailboxAddress string, subject string)
 
 type DirectService struct {
@@ -25,6 +27,7 @@ type DirectService struct {
 	store                 InboundStore
 	storage               FileStorage
 	onDelivery            DeliveryCallback
+	onForwarding          ForwardingCallback
 	inboundPolicyProvider InboundPolicyProvider
 	spool                 SpoolRepository
 }
@@ -39,6 +42,10 @@ func NewDirectService(mailboxes mailbox.Repository, store InboundStore, storage 
 
 func (s *DirectService) SetDeliveryCallback(cb DeliveryCallback) {
 	s.onDelivery = cb
+}
+
+func (s *DirectService) SetForwardingCallback(cb ForwardingCallback) {
+	s.onForwarding = cb
 }
 
 func (s *DirectService) SetInboundPolicyProvider(provider InboundPolicyProvider) {
@@ -199,6 +206,9 @@ func (s *DirectService) storeParsedToTargets(ctx context.Context, env InboundEnv
 		}
 		if s.onDelivery != nil {
 			s.onDelivery(target.UserID, target.ID, target.Address, item.Subject)
+		}
+		if s.onForwarding != nil && strings.TrimSpace(target.ForwardTo) != "" {
+			s.onForwarding(ctx, target.Address, target.ForwardTo, item.Subject, parsed.RawBytes)
 		}
 		lastItem = item
 		deliveredTo = target

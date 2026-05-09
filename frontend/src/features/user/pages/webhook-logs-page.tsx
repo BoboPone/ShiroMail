@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RotateCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,12 +9,14 @@ import {
   WorkspacePage,
   WorkspacePanel,
 } from "@/components/layout/workspace-ui";
-import { fetchWebhookDeliveries, fetchWebhooks } from "../api";
+import { fetchWebhookDeliveries, fetchWebhooks, retryWebhookDelivery } from "../api";
+import { showSuccess, showError } from "@/lib/toast";
 
 export function WebhookLogsPage() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const webhookId = id ? Number(id) : null;
+  const queryClient = useQueryClient();
 
   const webhooksQuery = useQuery({
     queryKey: ["portal-webhooks"],
@@ -25,6 +27,21 @@ export function WebhookLogsPage() {
     queryKey: ["webhook-deliveries", webhookId],
     queryFn: () => fetchWebhookDeliveries(webhookId!),
     enabled: webhookId !== null,
+  });
+
+  const retryMutation = useMutation({
+    mutationFn: (deliveryId: number) => retryWebhookDelivery(deliveryId),
+    onSuccess: (result) => {
+      if (result.success) {
+        showSuccess(t("webhookLogs.retrySuccess"));
+      } else {
+        showError(t("webhookLogs.retryFailed", { detail: result.errorMessage || `HTTP ${result.responseStatus}` }));
+      }
+      queryClient.invalidateQueries({ queryKey: ["webhook-deliveries", webhookId] });
+    },
+    onError: () => {
+      showError(t("webhookLogs.retryFailed", { detail: "unknown error" }));
+    },
   });
 
   const webhook = webhooksQuery.data?.find((w) => w.id === webhookId);
@@ -69,6 +86,7 @@ export function WebhookLogsPage() {
                   <th className="px-3 py-2 font-medium">{t("webhookLogs.colStatus")}</th>
                   <th className="px-3 py-2 font-medium">{t("webhookLogs.colLatency")}</th>
                   <th className="px-3 py-2 font-medium">{t("webhookLogs.colError")}</th>
+                  <th className="px-3 py-2 font-medium">{t("webhookLogs.colActions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -86,6 +104,19 @@ export function WebhookLogsPage() {
                     <td className="px-3 py-2.5 text-muted-foreground">{log.latencyMs}ms</td>
                     <td className="max-w-[200px] truncate px-3 py-2.5 text-xs text-destructive">
                       {log.errorMessage || "—"}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {!log.success && (
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          disabled={retryMutation.isPending}
+                          onClick={() => retryMutation.mutate(log.id)}
+                          title={t("webhookLogs.retry")}
+                        >
+                          <RotateCw className={`size-3.5 ${retryMutation.isPending ? "animate-spin" : ""}`} />
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}

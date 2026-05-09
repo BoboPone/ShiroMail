@@ -79,6 +79,7 @@ type WebhookDeliveryLog struct {
 	WebhookID      uint64    `json:"webhookId"`
 	Event          string    `json:"event"`
 	TargetURL      string    `json:"targetUrl"`
+	RequestBody    string    `json:"requestBody,omitempty"`
 	ResponseStatus int       `json:"responseStatus"`
 	LatencyMs      int       `json:"latencyMs"`
 	Success        bool      `json:"success"`
@@ -160,6 +161,7 @@ type Repository interface {
 	UpdateWebhook(ctx context.Context, item Webhook) (Webhook, error)
 	ToggleWebhook(ctx context.Context, userID uint64, webhookID uint64, enabled bool) (Webhook, error)
 	ListWebhookDeliveryLogs(ctx context.Context, userID uint64, webhookID uint64, limit int) ([]WebhookDeliveryLog, error)
+	GetWebhookDeliveryLog(ctx context.Context, userID uint64, deliveryID uint64) (WebhookDeliveryLog, error)
 	ListDocs(ctx context.Context) ([]DocArticle, error)
 	CreateDoc(ctx context.Context, item DocArticle) (DocArticle, error)
 	UpdateDoc(ctx context.Context, item DocArticle) (DocArticle, error)

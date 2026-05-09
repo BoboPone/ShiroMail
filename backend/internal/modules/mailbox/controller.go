@@ -117,6 +117,37 @@ func (c *Controller) Release(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, item)
 }
 
+func (c *Controller) UpdateForwarding(ctx *gin.Context) {
+	userID, ok := currentUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+
+	mailboxID, ok := mailboxIDFromParam(ctx)
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid mailbox id"})
+		return
+	}
+
+	var req UpdateForwardingRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid request"})
+		return
+	}
+
+	item, err := c.service.UpdateForwarding(ctx, userID, mailboxID, req)
+	if err != nil {
+		if errors.Is(err, ErrMailboxNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "failed to update forwarding"})
+		return
+	}
+	ctx.JSON(http.StatusOK, item)
+}
+
 func (c *Controller) updateExpiry(ctx *gin.Context) {
 	userID, ok := currentUserID(ctx)
 	if !ok {

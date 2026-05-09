@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronRight, ChevronUp, Copy, RefreshCcw, Trash2 } from "lucide-react";
 import i18n from "@/lib/i18n";
+import { DnsVerifyWizard } from "../components/dns-verify-wizard";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -558,6 +559,7 @@ export function UserDnsPage() {
     persistedWorkspace.activePreviewChangeSetId,
   );
   const [zoneFailureCooldowns, setZoneFailureCooldowns] = useState<Record<string, number>>({});
+  const [dnsVerifyWizardOpen, setDnsVerifyWizardOpen] = useState(false);
 
   const domainsQuery = useQuery({
     queryKey: ["user-domains"],
@@ -2124,7 +2126,16 @@ export function UserDnsPage() {
                                                 <div className="grid gap-3 lg:grid-cols-2">
                                                   <div className="space-y-2 rounded-xl border border-border/60 bg-card/50 p-3">
                                                     <div className="flex items-center justify-between gap-3">
-                                                      <div className="text-sm font-medium">自动验证</div>
+                                                      <div className="flex items-center gap-2">
+                                                        <div className="text-sm font-medium">自动验证</div>
+                                                        <Button
+                                                          size="sm"
+                                                          variant="outline"
+                                                          onClick={() => setDnsVerifyWizardOpen(true)}
+                                                        >
+                                                          {t("dns.verifyWizard.openGuide")}
+                                                        </Button>
+                                                      </div>
                                                       {(() => {
                                                         const summary = summarizeVerificationStatus(activeZoneWorkspace.verifications);
                                                         return (
@@ -2399,6 +2410,36 @@ export function UserDnsPage() {
             待验证域名、绑定状态和“配置 DNS”入口已移动到 `域名管理` 页面；这里现在只保留 DNS 服务商、Zone、Records 和变更工作区。
           </NoticeBanner>
         </div>
+
+        {dnsVerifyWizardOpen && activeZoneWorkspace && (
+          <DnsVerifyWizard
+            open={dnsVerifyWizardOpen}
+            onOpenChange={setDnsVerifyWizardOpen}
+            domain={domainItems.find((d) => d.domain === activeZoneWorkspace.zoneName) ?? {
+              id: 0,
+              domain: activeZoneWorkspace.zoneName,
+              status: "active",
+              visibility: "private",
+              publicationStatus: "draft",
+              verificationScore: 0,
+              healthStatus: "unknown",
+              isDefault: false,
+              weight: 100,
+              rootDomain: activeZoneWorkspace.zoneName,
+              parentDomain: "",
+              level: 0,
+              kind: "root",
+            }}
+            requiredRecords={activeZoneWorkspace.verifications.flatMap((v) =>
+              v.expectedRecords.map((r) => ({
+                type: r.type,
+                name: r.name,
+                value: r.value,
+                priority: r.priority || undefined,
+              }))
+            )}
+          />
+        )}
       </WorkspacePanel>
     </WorkspacePage>
   );
