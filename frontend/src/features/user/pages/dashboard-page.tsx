@@ -30,6 +30,7 @@ import { Link } from "react-router-dom";
 import { useAuthStore } from "@/lib/auth-store";
 import { fetchDashboard, fetchPortalOverview } from "../api";
 import { MessageTrendChart } from "../components/message-trend-chart";
+import { OnboardingGuide } from "../components/onboarding-guide";
 import { formatDateTime } from "./shared";
 
 export function UserDashboardPage() {
@@ -121,6 +122,12 @@ export function UserDashboardPage() {
           ))}
         </div>
       </WorkspacePanel>
+
+      <OnboardingGuide
+        hasDomains={ownedDomains.length > 0}
+        hasMailboxes={mailboxes.length > 0}
+        hasApiKeys={(overview?.activeApiKeyCount ?? 0) > 0}
+      />
 
       <WorkspacePanel
         action={

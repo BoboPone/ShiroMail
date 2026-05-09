@@ -427,6 +427,25 @@ const translation = {
     trendDaysSuffix: "天",
     trendMessages: "收件数",
   },
+  onboarding: {
+    title: "快速上手",
+    description: "完成以下步骤即可开始接收邮件。",
+    go: "前往",
+    steps: {
+      domain: {
+        title: "绑定域名",
+        hint: "添加你的域名并完成 DNS 验证。",
+      },
+      mailbox: {
+        title: "创建邮箱",
+        hint: "在已验证的域名下创建临时邮箱。",
+      },
+      apiKey: {
+        title: "创建 API Key",
+        hint: "为自动化集成生成访问密钥。",
+      },
+    },
+  },
   settings: {
     title: "账户设置",
     description: "更新展示名称、语言偏好与控制台刷新频率。",

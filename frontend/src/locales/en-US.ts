@@ -448,6 +448,25 @@ const translation = {
     trendDaysSuffix: "d",
     trendMessages: "Messages",
   },
+  onboarding: {
+    title: "Getting Started",
+    description: "Complete these steps to start receiving emails.",
+    go: "Go",
+    steps: {
+      domain: {
+        title: "Bind a Domain",
+        hint: "Add your domain and complete DNS verification.",
+      },
+      mailbox: {
+        title: "Create a Mailbox",
+        hint: "Create a temporary mailbox under a verified domain.",
+      },
+      apiKey: {
+        title: "Create an API Key",
+        hint: "Generate an access key for automation.",
+      },
+    },
+  },
   settings: {
     title: "Settings",
     description:
