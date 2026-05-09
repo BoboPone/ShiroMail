@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronRight, ChevronUp, RefreshCcw, Trash2 } from "lucide-react";
 import i18n from "@/lib/i18n";
@@ -425,6 +426,7 @@ export function UserDnsPage() {
   const currentUserId = useAuthStore((state) => state.user?.userId);
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const autoWorkspaceRequestRef = useRef<string | null>(null);
   const pendingWorkspaceRefreshRef = useRef<number | null>(null);
@@ -1131,6 +1133,40 @@ export function UserDnsPage() {
       }
     };
   }, []);
+
+  const hasPendingVerifications = useMemo(
+    () => (activeZoneWorkspace?.verifications ?? []).some((p) => p.status !== "verified"),
+    [activeZoneWorkspace?.verifications],
+  );
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (!hasPendingVerifications || !activeZoneWorkspace) {
+      setIsAutoRefreshing(false);
+      return;
+    }
+    const intervalId = window.setInterval(async () => {
+      try {
+        setIsAutoRefreshing(true);
+        const verifications = await fetchDomainProviderVerifications(
+          activeZoneWorkspace.providerId,
+          activeZoneWorkspace.zoneId,
+          activeZoneWorkspace.zoneName,
+        );
+        setActiveZoneWorkspace((current) =>
+          current ? { ...current, verifications } : current,
+        );
+      } catch {
+        // Silently ignore polling errors
+      } finally {
+        setIsAutoRefreshing(false);
+      }
+    }, 30_000);
+    return () => {
+      window.clearInterval(intervalId);
+      setIsAutoRefreshing(false);
+    };
+  }, [hasPendingVerifications, activeZoneWorkspace?.providerId, activeZoneWorkspace?.zoneId, activeZoneWorkspace?.zoneName]);
 
   const requestedDomainUsesActiveWorkspace = useCallback((domain: {
     providerAccountId?: number | null;
@@ -2057,10 +2093,18 @@ export function UserDnsPage() {
                                                       {(() => {
                                                         const summary = summarizeVerificationStatus(activeZoneWorkspace.verifications);
                                                         return (
-                                                          <div className="flex gap-2">
+                                                          <div className="flex items-center gap-2">
                                                             <WorkspaceBadge variant="outline">通过 {summary.verified}</WorkspaceBadge>
                                                             <WorkspaceBadge variant="outline">漂移 {summary.drifted}</WorkspaceBadge>
                                                             <WorkspaceBadge variant="outline">待处理 {summary.pending}</WorkspaceBadge>
+                                                            {isAutoRefreshing ? (
+                                                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                                <RefreshCcw className="size-3 animate-spin" />
+                                                                {t("dns.autoRefreshing")}
+                                                              </span>
+                                                            ) : hasPendingVerifications ? (
+                                                              <span className="text-xs text-muted-foreground">{t("dns.autoRefreshing")}</span>
+                                                            ) : null}
                                                           </div>
                                                         );
                                                       })()}

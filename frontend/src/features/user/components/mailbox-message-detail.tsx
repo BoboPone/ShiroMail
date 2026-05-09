@@ -12,8 +12,11 @@ import {
   BookOpen,
   BookX,
   Clock3,
+  Copy,
+  Check,
   Download,
   Inbox,
+  Mail,
   Search,
   ShieldCheck,
   TimerReset,
@@ -189,6 +192,7 @@ export function MailboxMessageDetail({
             onBatchDelete={handleBatchDelete}
             onBatchMarkRead={handleBatchMarkRead}
             isBatchPending={isBatchPending}
+            mailboxAddress={selectedMailbox.address}
           />
           {selectedMessageSummary ? (
             <Card className="border-border/60 bg-muted/10 shadow-none">
@@ -325,6 +329,7 @@ function MessageList({
   onBatchDelete,
   onBatchMarkRead,
   isBatchPending,
+  mailboxAddress,
 }: {
   messages: MailboxMessageSummary[];
   effectiveSelectedMessageId: number | null;
@@ -343,6 +348,7 @@ function MessageList({
   onBatchDelete: () => void;
   onBatchMarkRead: (read: boolean) => void;
   isBatchPending?: boolean;
+  mailboxAddress?: string;
 }) {
   const { t } = useTranslation();
   const allSelected = messages.length > 0 && selectedIds.size === messages.length;
@@ -405,7 +411,7 @@ function MessageList({
       ) : !messages.length && hasActiveSearch ? (
         <WorkspaceEmpty description={noResultsHint} title={noResultsTitle} />
       ) : !messages.length ? (
-        <WorkspaceEmpty description="这个邮箱当前还没有消息，等待新的邮件到达。" title="还没有消息" />
+        <EmptyMailboxGuide address={mailboxAddress} />
       ) : (
         messages.map((message) => {
           const active = message.id === effectiveSelectedMessageId;
@@ -452,6 +458,73 @@ function MessageList({
           );
         })
       )}
+    </div>
+  );
+}
+
+function EmptyMailboxGuide({ address }: { address?: string }) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    if (!address) return;
+    void navigator.clipboard.writeText(address).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [address]);
+
+  return (
+    <div className="rounded-xl border-2 border-dashed border-border/70 bg-card px-5 py-8 text-center">
+      <div className="mx-auto max-w-sm space-y-4">
+        <div className="mx-auto flex size-14 items-center justify-center rounded-full border-2 border-dashed border-muted-foreground/30 bg-muted/30">
+          <Mail className="size-6 text-muted-foreground/60" />
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="text-base font-medium">{t("emptyMailbox.title")}</p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {t("emptyMailbox.description")}
+          </p>
+        </div>
+
+        {address && (
+          <div className="space-y-3">
+            <div className="rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                {t("emptyMailbox.addressLabel")}
+              </div>
+              <div className="mt-1 select-all font-mono text-sm font-medium">
+                {address}
+              </div>
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={handleCopy}
+              size="sm"
+              variant="secondary"
+            >
+              {copied ? (
+                <Check className="size-4" />
+              ) : (
+                <Copy className="size-4" />
+              )}
+              {copied ? t("emptyMailbox.copied") : t("emptyMailbox.copyAddress")}
+            </Button>
+
+            <div className="space-y-1.5 text-left">
+              <p className="text-[11px] text-muted-foreground">
+                {t("emptyMailbox.curlHint")}
+              </p>
+              <pre className="overflow-x-auto rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-left font-mono text-[11px] leading-5 text-muted-foreground">
+{`curl -X POST /api/v1/mailboxes/{id}/messages \\
+  -H "Authorization: Bearer <token>"`}
+              </pre>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

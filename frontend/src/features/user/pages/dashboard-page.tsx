@@ -325,25 +325,39 @@ export function UserDashboardPage() {
           <div className="space-y-3">
             {mailboxes.slice(0, 5).map((mailbox) => {
               const unread = unreadCounts[mailbox.id] ?? 0;
+              const maxUnread = Math.max(1, ...Object.values(unreadCounts));
+              const usagePercent = Math.round((unread / maxUnread) * 100);
               return (
-              <WorkspaceListRow
-                description={`${mailbox.domain} · ${
-                  mailbox.status === "active" ? t("dashboard.mailboxStatusActive") : t("dashboard.mailboxStatusReleased")
-                }`}
-                key={mailbox.id}
-                meta={
-                  <>
-                    {unread > 0 && (
-                      <Badge variant="default" className="rounded-full px-2 text-xs">
-                        {unread}
-                      </Badge>
-                    )}
-                    <WorkspaceBadge>{mailbox.localPart}</WorkspaceBadge>
-                    <span>{formatDateTime(mailbox.expiresAt)}</span>
-                  </>
-                }
-                title={mailbox.address}
-              />
+              <div key={mailbox.id} className="space-y-1.5">
+                <WorkspaceListRow
+                  description={`${mailbox.domain} · ${
+                    mailbox.status === "active" ? t("dashboard.mailboxStatusActive") : t("dashboard.mailboxStatusReleased")
+                  }`}
+                  meta={
+                    <>
+                      {unread > 0 && (
+                        <Badge variant="default" className="rounded-full px-2 text-xs">
+                          {unread}
+                        </Badge>
+                      )}
+                      <WorkspaceBadge>{mailbox.localPart}</WorkspaceBadge>
+                      <span>{formatDateTime(mailbox.expiresAt)}</span>
+                    </>
+                  }
+                  title={mailbox.address}
+                />
+                <div className="flex items-center gap-2 px-1">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted/40">
+                    <div
+                      className="h-full rounded-full bg-primary/60 transition-all duration-300"
+                      style={{ width: `${usagePercent}%` }}
+                    />
+                  </div>
+                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                    {t("mailboxQuota.messagesLabel", { count: unread })}
+                  </span>
+                </div>
+              </div>
               );
             })}
           </div>

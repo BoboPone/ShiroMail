@@ -555,6 +555,36 @@ const translation = {
     colActor: "操作人",
     colTime: "时间",
   },
+  emptyMailbox: {
+    title: "暂无消息",
+    description: "向此地址发送一封测试邮件即可开始使用。",
+    addressLabel: "邮箱地址",
+    copyAddress: "复制地址",
+    copied: "已复制！",
+    curlHint: "也可以通过 API 发送测试消息：",
+  },
+  mailboxQuota: {
+    messagesLabel: "{{count}} 封邮件",
+    relativeUsage: "相对用量",
+  },
+  footer: {
+    privacy: "隐私政策",
+    terms: "服务条款",
+    docs: "文档中心",
+    github: "GitHub",
+    copyright: "© {{year}} ShiroMail. 保留所有权利。",
+  },
+  validation: {
+    required: "此项为必填。",
+    emailInvalid: "邮箱地址格式不正确。",
+    minLength: "至少需要 {{min}} 个字符。",
+    maxLength: "不能超过 {{max}} 个字符。",
+    codeFormat: "验证码必须是 6 位数字。",
+    mailboxLocalPart: "邮箱前缀仅支持 2-64 位小写字母、数字、点、下划线或短横线，且必须以字母或数字开头。",
+  },
+  dns: {
+    autoRefreshing: "自动刷新中...",
+  },
 } as const;
 
 export default { translation } as const;

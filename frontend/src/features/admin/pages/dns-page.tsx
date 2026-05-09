@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Globe, Plus, RefreshCcw } from "lucide-react";
 import {
   AlertDialog,
@@ -84,6 +85,7 @@ import {
 export function AdminDnsPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const persistedWorkspace = readPersistedState(ADMIN_WORKSPACE_CACHE_KEY, {
     activeTab: "providers" as DnsWorkspaceTab,
@@ -438,6 +440,39 @@ export function AdminDnsPage() {
       }
     };
   }, []);
+
+  const hasPendingVerifications = useMemo(
+    () => verificationProfiles.some((p) => p.status !== "verified"),
+    [verificationProfiles],
+  );
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (!hasPendingVerifications || !providerRecordPanel) {
+      setIsAutoRefreshing(false);
+      return;
+    }
+    const intervalId = window.setInterval(async () => {
+      try {
+        setIsAutoRefreshing(true);
+        const verifications = await fetchAdminDomainProviderVerifications(
+          providerRecordPanel.providerId,
+          providerRecordPanel.zoneId,
+          providerRecordPanel.zoneName,
+        );
+        setVerificationProfiles(verifications);
+      } catch {
+        // Silently ignore polling errors
+      } finally {
+        setIsAutoRefreshing(false);
+      }
+    }, 30_000);
+    return () => {
+      window.clearInterval(intervalId);
+      setIsAutoRefreshing(false);
+    };
+  }, [hasPendingVerifications, providerRecordPanel]);
+
   async function resolveLiveAdminProvider(providerId: number) {
     const result = await providersQuery.refetch();
     const liveProviders = result.data ?? providersQuery.data ?? [];
@@ -1059,6 +1094,14 @@ export function AdminDnsPage() {
                             <WorkspaceBadge variant="outline">历史 {sortedChangeSetHistory.length}</WorkspaceBadge>
                             <WorkspaceBadge variant="outline">已验证 {verificationStatusSummary.verified}</WorkspaceBadge>
                             <WorkspaceBadge variant="outline">待修复 {verificationStatusSummary.drifted}</WorkspaceBadge>
+                            {isAutoRefreshing ? (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <RefreshCcw className="size-3 animate-spin" />
+                                {t("dns.autoRefreshing")}
+                              </span>
+                            ) : hasPendingVerifications && providerRecordPanel ? (
+                              <span className="text-xs text-muted-foreground">{t("dns.autoRefreshing")}</span>
+                            ) : null}
                             <Button
                               disabled={isChangeSetWorkspaceBusy || loadingRecordsZoneKey === `${providerRecordPanel.providerId}:${providerRecordPanel.zoneId}`}
                               size="sm"

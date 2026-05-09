@@ -3,6 +3,13 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
+import {
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+  forgotPasswordSchema,
+  twoFactorSchema,
+} from "@/lib/schemas";
 import { SiteBrandMark } from "@/components/brand/site-brand-mark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,6 +69,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   const [resetResendPending, setResetResendPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const authSettingsQuery = useQuery({
     queryKey: ["auth-settings"],
     queryFn: fetchAuthSettings,
@@ -126,6 +134,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
     setResetResendPending(false);
     setError(null);
     setNotice(null);
+    setFieldErrors({});
   }
 
   useEffect(() => {
@@ -146,10 +155,45 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
     setError(null);
   }, [authSettings?.bootstrapAdminRequired, open, t]);
 
+  function validateCurrentMode() {
+    if (mode === "login") {
+      return loginSchema.safeParse({ login: loginValue, password });
+    }
+    if (mode === "register") {
+      return registerSchema.safeParse({
+        username: registerUsername,
+        email: registerEmail,
+        password: registerPassword,
+      });
+    }
+    if (mode === "forgot") {
+      return forgotPasswordSchema.safeParse({ login: forgotLogin });
+    }
+    if (mode === "two-factor") {
+      return twoFactorSchema.safeParse({ code: twoFactorCode });
+    }
+    return resetPasswordSchema.safeParse({ code: resetCode, newPassword: nextPassword });
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
     setError(null);
+    setFieldErrors({});
+
+    const validationResult = validateCurrentMode();
+    if (!validationResult.success) {
+      const errors: Record<string, string> = {};
+      for (const issue of validationResult.error.issues) {
+        const key = issue.path[0];
+        if (key && !errors[String(key)]) {
+          errors[String(key)] = issue.message;
+        }
+      }
+      setFieldErrors(errors);
+      setPending(false);
+      return;
+    }
 
     try {
       if (mode === "forgot") {
@@ -241,6 +285,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   function switchMode(next: AuthMode) {
     setError(null);
     setNotice(null);
+    setFieldErrors({});
     if (next !== "reset") {
       setResetCode("");
       setResetVerificationTicket("");
@@ -343,6 +388,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                     placeholder={t("auth.accountPlaceholder")}
                     value={loginValue}
                   />
+                  {fieldErrors.login ? <p className="text-xs text-destructive">{fieldErrors.login}</p> : null}
                 </div>
 
                 <div className="grid gap-2">
@@ -356,6 +402,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                     type="password"
                     value={password}
                   />
+                  {fieldErrors.password ? <p className="text-xs text-destructive">{fieldErrors.password}</p> : null}
                 </div>
               </>
             ) : mode === "register" ? (
@@ -374,6 +421,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                     placeholder={t("auth.usernamePlaceholder")}
                     value={registerUsername}
                   />
+                  {fieldErrors.username ? <p className="text-xs text-destructive">{fieldErrors.username}</p> : null}
                 </div>
 
                 <div className="grid gap-2">
@@ -387,6 +435,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                     type="email"
                     value={registerEmail}
                   />
+                  {fieldErrors.email ? <p className="text-xs text-destructive">{fieldErrors.email}</p> : null}
                 </div>
 
                 <div className="grid gap-2">
@@ -404,6 +453,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                     type="password"
                     value={registerPassword}
                   />
+                  {fieldErrors.password ? <p className="text-xs text-destructive">{fieldErrors.password}</p> : null}
                 </div>
               </>
             ) : mode === "forgot" ? (
@@ -417,6 +467,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                   placeholder={t("auth.accountPlaceholder")}
                   value={forgotLogin}
                 />
+                {fieldErrors.login ? <p className="text-xs text-destructive">{fieldErrors.login}</p> : null}
               </div>
             ) : mode === "two-factor" ? (
               <>
@@ -430,6 +481,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                     placeholder={t("auth.verificationCodePlaceholder")}
                     value={twoFactorCode}
                   />
+                  {fieldErrors.code ? <p className="text-xs text-destructive">{fieldErrors.code}</p> : null}
                 </div>
 
                 <p className="text-xs leading-6 text-muted-foreground">
@@ -448,6 +500,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                     placeholder={t("auth.verificationCodePlaceholder")}
                     value={resetCode}
                   />
+                  {fieldErrors.code ? <p className="text-xs text-destructive">{fieldErrors.code}</p> : null}
                 </div>
 
                 {resetEmail ? (
@@ -481,6 +534,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                     type="password"
                     value={nextPassword}
                   />
+                  {fieldErrors.newPassword ? <p className="text-xs text-destructive">{fieldErrors.newPassword}</p> : null}
                 </div>
               </>
             )}

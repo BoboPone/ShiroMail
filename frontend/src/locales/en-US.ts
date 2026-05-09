@@ -578,6 +578,36 @@ const translation = {
     colActor: "Actor",
     colTime: "Time",
   },
+  emptyMailbox: {
+    title: "No messages yet",
+    description: "Send a test email to this address to get started.",
+    addressLabel: "Mailbox address",
+    copyAddress: "Copy address",
+    copied: "Copied!",
+    curlHint: "Or use the API to send a test message:",
+  },
+  mailboxQuota: {
+    messagesLabel: "{{count}} messages",
+    relativeUsage: "Relative usage",
+  },
+  footer: {
+    privacy: "Privacy Policy",
+    terms: "Terms of Service",
+    docs: "Documentation",
+    github: "GitHub",
+    copyright: "© {{year}} ShiroMail. All rights reserved.",
+  },
+  validation: {
+    required: "This field is required.",
+    emailInvalid: "Invalid email address format.",
+    minLength: "Must be at least {{min}} characters.",
+    maxLength: "Must not exceed {{max}} characters.",
+    codeFormat: "Code must be exactly 6 digits.",
+    mailboxLocalPart: "Prefix must be 2-64 lowercase letters, digits, dots, underscores, or hyphens, starting with a letter or digit.",
+  },
+  dns: {
+    autoRefreshing: "Auto-refreshing...",
+  },
 } as const;
 
 export default { translation } as const;

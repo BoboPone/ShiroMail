@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { createRoutePrefetchHandlers } from "@/app/prefetch-route";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { fetchPublicSiteSettings } from "../api";
 import { resolveSiteIconUrl } from "@/hooks/use-site-branding";
 
@@ -175,6 +176,36 @@ export function PublicShell({ children, hero, pageClassName }: PublicShellProps)
           {resolvedHero}
           {children}
         </main>
+
+        <footer className="mt-8 border-t border-border/60 pt-6 pb-2">
+          <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
+            <nav aria-label="Footer links" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+              <Link to="/privacy" className="transition-colors hover:text-foreground">
+                {t("footer.privacy")}
+              </Link>
+              <Separator orientation="vertical" className="hidden h-4 sm:block" />
+              <Link to="/terms" className="transition-colors hover:text-foreground">
+                {t("footer.terms")}
+              </Link>
+              <Separator orientation="vertical" className="hidden h-4 sm:block" />
+              <Link to="/docs" className="transition-colors hover:text-foreground">
+                {t("footer.docs")}
+              </Link>
+              <Separator orientation="vertical" className="hidden h-4 sm:block" />
+              <a
+                href="https://github.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-foreground"
+              >
+                {t("footer.github")}
+              </a>
+            </nav>
+            <p className="text-xs text-muted-foreground">
+              {t("footer.copyright", { year: new Date().getFullYear() })}
+            </p>
+          </div>
+        </footer>
       </div>
 
       <LoginModal onOpenChange={setLoginOpen} open={loginOpen} />

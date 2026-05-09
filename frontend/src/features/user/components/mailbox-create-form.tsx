@@ -1,9 +1,12 @@
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { OptionCombobox } from "@/components/ui/option-combobox";
 import { WorkspaceField } from "@/components/layout/workspace-ui";
 import { MailPlus } from "lucide-react";
+import { mailboxLocalPartSchema } from "@/lib/schemas";
 import type { DomainOption } from "../api";
 
 const ttlOptions = [
@@ -37,6 +40,30 @@ export function MailboxCreateForm({
   isPending,
   onSubmit,
 }: Props) {
+  const { t } = useTranslation();
+  const [localPartError, setLocalPartError] = useState<string | null>(null);
+
+  function handleLocalPartChange(value: string) {
+    onLocalPartChange(value);
+    if (value.trim()) {
+      const result = mailboxLocalPartSchema.safeParse(value.trim().toLowerCase());
+      setLocalPartError(result.success ? null : result.error.issues[0]?.message ?? null);
+    } else {
+      setLocalPartError(null);
+    }
+  }
+
+  function handleSubmit() {
+    if (localPart.trim()) {
+      const result = mailboxLocalPartSchema.safeParse(localPart.trim().toLowerCase());
+      if (!result.success) {
+        setLocalPartError(result.error.issues[0]?.message ?? t("validation.required"));
+        return;
+      }
+    }
+    onSubmit();
+  }
+
   return (
     <Card className="border-border/60 bg-muted/10 shadow-none">
       <CardContent className="space-y-4 py-4">
@@ -78,7 +105,7 @@ export function MailboxCreateForm({
             <Button
               className="w-full md:w-auto"
               disabled={effectiveDomainId === "" || isPending}
-              onClick={onSubmit}
+              onClick={handleSubmit}
             >
               <MailPlus className="size-4" />
               {isPending ? "创建中..." : "创建邮箱"}
@@ -88,10 +115,11 @@ export function MailboxCreateForm({
 
         <WorkspaceField label="邮箱前缀">
           <Input
-            onChange={(event) => onLocalPartChange(event.target.value)}
+            onChange={(event) => handleLocalPartChange(event.target.value)}
             placeholder="留空则自动生成"
             value={localPart}
           />
+          {localPartError ? <p className="text-xs text-destructive">{localPartError}</p> : null}
         </WorkspaceField>
 
         {feedback ? <div className="text-xs text-muted-foreground">{feedback}</div> : null}
