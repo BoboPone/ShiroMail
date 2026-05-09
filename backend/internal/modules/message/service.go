@@ -199,6 +199,13 @@ func (s *Service) MessageTrend(ctx context.Context, userID uint64, days int) ([]
 	return s.repo.CountDailyRangeByUser(ctx, userID, days)
 }
 
+func (s *Service) RecentActivity(ctx context.Context, userID uint64, limit int) ([]Summary, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 10
+	}
+	return s.repo.RecentByUser(ctx, userID, limit)
+}
+
 func (s *Service) listSummaries(ctx context.Context, mailboxID uint64, query string) ([]Summary, error) {
 	cacheKey := mailboxMessageListCacheKey(mailboxID, query)
 	if query == "" && s.cache != nil {

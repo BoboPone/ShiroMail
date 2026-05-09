@@ -447,6 +447,11 @@ const translation = {
     trendDescription: "Daily message count across all your mailboxes.",
     trendDaysSuffix: "d",
     trendMessages: "Messages",
+    activityTitle: "Recent Activity",
+    activityDescription: "Latest messages across all your mailboxes.",
+    activityEmpty: "No messages yet",
+    activityEmptyHint: "When your mailboxes receive new emails, recent activity will appear here.",
+    activityNoSubject: "(No subject)",
   },
   onboarding: {
     title: "Getting Started",

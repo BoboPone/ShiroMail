@@ -31,6 +31,7 @@ import { useAuthStore } from "@/lib/auth-store";
 import { fetchDashboard, fetchPortalOverview } from "../api";
 import { MessageTrendChart } from "../components/message-trend-chart";
 import { OnboardingGuide } from "../components/onboarding-guide";
+import { RecentActivityFeed } from "../components/recent-activity-feed";
 import { formatDateTime } from "./shared";
 
 export function UserDashboardPage() {
@@ -244,6 +245,10 @@ export function UserDashboardPage() {
           </div>
         </WorkspacePanel>
       </div>
+
+      <WorkspacePanel description={t("dashboard.activityDescription")} title={t("dashboard.activityTitle")}>
+        <RecentActivityFeed />
+      </WorkspacePanel>
 
       <WorkspacePanel
         action={

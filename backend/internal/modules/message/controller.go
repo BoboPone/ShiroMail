@@ -45,6 +45,26 @@ func (c *Controller) Trend(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"items": items})
 }
 
+func (c *Controller) RecentActivity(ctx *gin.Context) {
+	userID, ok := currentUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+
+	limit := 10
+	if l, err := strconv.Atoi(ctx.Query("limit")); err == nil && l > 0 {
+		limit = l
+	}
+
+	items, err := c.service.RecentActivity(ctx, userID, limit)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "failed to load recent activity"})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"items": items})
+}
+
 func (c *Controller) ListByMailbox(ctx *gin.Context) {
 	userID, ok := currentUserID(ctx)
 	if !ok {

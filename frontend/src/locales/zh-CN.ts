@@ -426,6 +426,11 @@ const translation = {
     trendDescription: "按天统计当前账号下所有邮箱的收件数量。",
     trendDaysSuffix: "天",
     trendMessages: "收件数",
+    activityTitle: "最近动态",
+    activityDescription: "跨邮箱的最新收件记录。",
+    activityEmpty: "暂无收件记录",
+    activityEmptyHint: "当邮箱收到新邮件时，这里会显示最近的动态。",
+    activityNoSubject: "(无主题)",
   },
   onboarding: {
     title: "快速上手",

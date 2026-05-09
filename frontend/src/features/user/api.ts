@@ -396,6 +396,23 @@ export async function fetchDashboardTrend(days = 7) {
   return data.items;
 }
 
+export type RecentActivityItem = {
+  id: number;
+  mailboxId: number;
+  mailboxAddress: string;
+  fromAddr: string;
+  subject: string;
+  textPreview: string;
+  isRead: boolean;
+  hasAttachments: boolean;
+  receivedAt: string;
+};
+
+export async function fetchRecentActivity(limit = 10) {
+  const { data } = await http.get<{ items: RecentActivityItem[] }>("/dashboard/activity", { params: { limit } });
+  return data.items ?? [];
+}
+
 export async function fetchPortalOverview() {
   const { data } = await http.get<PortalOverview>("/portal/overview");
   return data;
