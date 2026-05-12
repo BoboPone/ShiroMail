@@ -244,7 +244,7 @@ func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 		checks["status"] = map[bool]string{true: "ok", false: "degraded"}[healthy]
 		ctx.JSON(status, checks)
 	})
-	engine.GET("/ws", middleware.RequireAuth(cfg.JWTSecret), state.WSHub.HandleWS)
+	engine.GET("/api/ws", middleware.RequireAuth(cfg.JWTSecret), state.WSHub.HandleWS)
 	engine.GET("/metrics", middleware.MetricsHandler(cfg.MetricsToken))
 
 	authService := auth.NewService(state.AuthRepo, cfg.JWTSecret, state.ConfigRepo)
