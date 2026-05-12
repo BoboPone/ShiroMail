@@ -9,7 +9,7 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-func NewRedis(addr string) *redis.Client {
+func NewRedis(addr string, password string) *redis.Client {
 	db := 0
 	if slash := strings.LastIndex(addr, "/"); slash > strings.LastIndex(addr, ":") {
 		if parsed, err := strconv.Atoi(strings.TrimSpace(addr[slash+1:])); err == nil {
@@ -20,6 +20,7 @@ func NewRedis(addr string) *redis.Client {
 
 	return redis.NewClient(&redis.Options{
 		Addr:         addr,
+		Password:     password,
 		DB:           db,
 		PoolSize:     20,
 		MinIdleConns: 5,

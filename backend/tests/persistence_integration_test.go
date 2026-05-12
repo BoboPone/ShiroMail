@@ -296,7 +296,7 @@ func mustOpenTestRedis(t *testing.T) *redis.Client {
 
 	addr := testRedisAddr()
 
-	client := database.NewRedis(addr)
+	client := database.NewRedis(addr, "")
 	if err := waitForRedis(context.Background(), client, 3*time.Second); err != nil {
 		t.Skipf("skipping redis-backed persistence test: %v", err)
 	}

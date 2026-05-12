@@ -107,6 +107,7 @@ export type MailboxItem = {
   localPart: string;
   address: string;
   status: string;
+  permanent: boolean;
   expiresAt: string;
   retentionDays: number;
   forwardTo: string;
@@ -709,12 +710,12 @@ export async function fetchMailboxMessageAttachmentBlob(mailboxId: number, messa
   return response.data instanceof Blob ? response.data : new Blob([response.data]);
 }
 
-export async function createMailbox(input: { domainId: number; expiresInHours: number; retentionDays?: number }) {
+export async function createMailbox(input: { domainId: number; expiresInHours: number; permanent?: boolean; retentionDays?: number }) {
   const { data } = await http.post<MailboxItem>("/mailboxes", input);
   return data;
 }
 
-export async function createCustomMailbox(input: { domainId: number; expiresInHours: number; localPart: string; retentionDays?: number }) {
+export async function createCustomMailbox(input: { domainId: number; expiresInHours: number; localPart: string; permanent?: boolean; retentionDays?: number }) {
   const { data } = await http.post<MailboxItem>("/mailboxes", input);
   return data;
 }

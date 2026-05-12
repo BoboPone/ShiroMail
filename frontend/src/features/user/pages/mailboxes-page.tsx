@@ -94,6 +94,7 @@ export function UserMailboxPage() {
   const [mailboxesPage, setMailboxesPage] = useState(1);
   const [domainId, setDomainId] = useState("");
   const [ttlHours, setTtlHours] = useState<number>(24);
+  const [permanent, setPermanent] = useState(false);
   const [retentionDays, setRetentionDays] = useState<number>(0);
   const [localPart, setLocalPart] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -387,12 +388,14 @@ export function UserMailboxPage() {
       setFeedback(domainError);
       return;
     }
-    const ttlError =
-      validateIntegerRange("有效期", ttlHours, { min: 24, max: 168 }) ||
-      (!allowedMailboxTTLValues.includes(ttlHours) ? "有效期无效，请重新选择。": null);
-    if (ttlError) {
-      setFeedback(ttlError);
-      return;
+    if (!permanent) {
+      const ttlError =
+        validateIntegerRange("有效期", ttlHours, { min: 24, max: 168 }) ||
+        (!allowedMailboxTTLValues.includes(ttlHours) ? "有效期无效，请重新选择。": null);
+      if (ttlError) {
+        setFeedback(ttlError);
+        return;
+      }
     }
     const localPartError = validateMailboxLocalPart(localPart);
     if (localPartError) {
@@ -407,7 +410,8 @@ export function UserMailboxPage() {
     }, { replace: true });
     createMutation.mutate({
       domainId: Number(effectiveDomainId),
-      expiresInHours: ttlHours,
+      expiresInHours: permanent ? 0 : ttlHours,
+      permanent,
       localPart: localPart.trim().toLowerCase(),
       retentionDays,
     });
@@ -496,6 +500,8 @@ export function UserMailboxPage() {
               onDomainIdChange={setDomainId}
               ttlHours={ttlHours}
               onTtlHoursChange={setTtlHours}
+              permanent={permanent}
+              onPermanentChange={setPermanent}
               localPart={localPart}
               onLocalPartChange={setLocalPart}
               retentionDays={retentionDays}

@@ -838,7 +838,7 @@ func newRuntimePersistentState(cfg config.Config) (*AppState, error) {
 		return nil, fmt.Errorf("seed roles: %w", err)
 	}
 
-	redisClient := database.NewRedis(cfg.RedisAddr)
+	redisClient := database.NewRedis(cfg.RedisAddr, cfg.RedisPassword)
 	if err := database.PingRedis(ctx, redisClient); err != nil {
 		return nil, fmt.Errorf("ping redis: %w", err)
 	}

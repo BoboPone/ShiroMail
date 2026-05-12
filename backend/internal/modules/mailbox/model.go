@@ -14,6 +14,7 @@ type Mailbox struct {
 	LocalPart       string    `json:"localPart"`
 	Address         string    `json:"address"`
 	Status          string    `json:"status"`
+	Permanent       bool      `json:"permanent"`
 	ExpiresAt       time.Time `json:"expiresAt"`
 	RetentionDays   int       `json:"retentionDays"`
 	ForwardTo       string    `json:"forwardTo"`
@@ -25,7 +26,8 @@ type Mailbox struct {
 type CreateMailboxRequest struct {
 	LocalPart      string `json:"localPart"`
 	DomainID       uint64 `json:"domainId" binding:"required"`
-	ExpiresInHours int    `json:"expiresInHours" binding:"required"`
+	ExpiresInHours int    `json:"expiresInHours"`
+	Permanent      bool   `json:"permanent"`
 	RetentionDays  int    `json:"retentionDays"`
 }
 

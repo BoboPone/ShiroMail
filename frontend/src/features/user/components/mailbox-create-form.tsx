@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { OptionCombobox } from "@/components/ui/option-combobox";
 import { WorkspaceField } from "@/components/layout/workspace-ui";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { MailPlus } from "lucide-react";
 import { mailboxLocalPartSchema } from "@/lib/schemas";
 import type { DomainOption } from "../api";
@@ -30,6 +32,8 @@ type Props = {
   onDomainIdChange: (value: string) => void;
   ttlHours: number;
   onTtlHoursChange: (value: number) => void;
+  permanent: boolean;
+  onPermanentChange: (value: boolean) => void;
   localPart: string;
   onLocalPartChange: (value: string) => void;
   retentionDays: number;
@@ -45,6 +49,8 @@ export function MailboxCreateForm({
   onDomainIdChange,
   ttlHours,
   onTtlHoursChange,
+  permanent,
+  onPermanentChange,
   localPart,
   onLocalPartChange,
   retentionDays,
@@ -105,12 +111,13 @@ export function MailboxCreateForm({
           <WorkspaceField label="有效期">
             <OptionCombobox
               ariaLabel="邮箱有效期"
+              disabled={permanent}
               emptyLabel="没有匹配的有效期"
               onValueChange={(value) => onTtlHoursChange(Number(value))}
               options={ttlOptions}
-              placeholder="选择有效期"
+              placeholder={permanent ? "永久" : "选择有效期"}
               searchPlaceholder="搜索有效期"
-              value={String(ttlHours)}
+              value={permanent ? "" : String(ttlHours)}
             />
           </WorkspaceField>
 
@@ -138,14 +145,25 @@ export function MailboxCreateForm({
           </div>
         </div>
 
-        <WorkspaceField label="邮箱前缀">
-          <Input
-            onChange={(event) => handleLocalPartChange(event.target.value)}
-            placeholder="留空则自动生成"
-            value={localPart}
-          />
-          {localPartError ? <p className="text-xs text-destructive">{localPartError}</p> : null}
-        </WorkspaceField>
+        <div className="flex items-center gap-4">
+          <WorkspaceField label="邮箱前缀" className="flex-1">
+            <Input
+              onChange={(event) => handleLocalPartChange(event.target.value)}
+              placeholder="留空则自动生成"
+              value={localPart}
+            />
+            {localPartError ? <p className="text-xs text-destructive">{localPartError}</p> : null}
+          </WorkspaceField>
+
+          <div className="flex items-center gap-2 pt-5">
+            <Switch
+              checked={permanent}
+              id="permanent-switch"
+              onCheckedChange={onPermanentChange}
+            />
+            <Label htmlFor="permanent-switch" className="text-sm whitespace-nowrap">永久邮箱</Label>
+          </div>
+        </div>
 
         {feedback ? <div className="text-xs text-muted-foreground">{feedback}</div> : null}
       </CardContent>

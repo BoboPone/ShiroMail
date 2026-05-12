@@ -220,6 +220,7 @@ type MailboxRow struct {
 	LocalPart       string     `gorm:"column:local_part"`
 	Address         string     `gorm:"column:address"`
 	Status          string     `gorm:"column:status"`
+	Permanent       bool       `gorm:"column:permanent"`
 	ExpiresAt       time.Time  `gorm:"column:expires_at"`
 	IsFavorite      bool       `gorm:"column:is_favorite"`
 	Source          string     `gorm:"column:source"`

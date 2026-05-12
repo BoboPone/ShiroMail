@@ -24,6 +24,7 @@ type mailboxRecord struct {
 	LocalPart       string    `gorm:"column:local_part"`
 	Address         string    `gorm:"column:address"`
 	Status          string    `gorm:"column:status"`
+	Permanent       bool      `gorm:"column:permanent"`
 	ExpiresAt       time.Time `gorm:"column:expires_at"`
 	RetentionDays   int       `gorm:"column:retention_days"`
 	ForwardTo       string    `gorm:"column:forward_to"`
@@ -43,6 +44,7 @@ func (r *MySQLRepository) Create(ctx context.Context, item Mailbox) (Mailbox, er
 		LocalPart:     item.LocalPart,
 		Address:       item.Address,
 		Status:        item.Status,
+		Permanent:     item.Permanent,
 		ExpiresAt:     item.ExpiresAt,
 		RetentionDays: item.RetentionDays,
 		CreatedAt:     item.CreatedAt,
@@ -204,6 +206,7 @@ func (r *MySQLRepository) Update(ctx context.Context, item Mailbox) (Mailbox, er
 			"local_part":        item.LocalPart,
 			"address":           item.Address,
 			"status":            item.Status,
+			"permanent":         item.Permanent,
 			"expires_at":        item.ExpiresAt,
 			"retention_days":    item.RetentionDays,
 			"forward_to":        item.ForwardTo,
@@ -238,7 +241,7 @@ func (r *MySQLRepository) list(ctx context.Context, where string, order string, 
 	query := r.db.WithContext(ctx).
 		Table("mailboxes").
 		Select(
-			"mailboxes.id, mailboxes.user_id, mailboxes.domain_id, COALESCE(domains.domain, SUBSTRING_INDEX(mailboxes.address, '@', -1)) AS domain, mailboxes.local_part, mailboxes.address, mailboxes.status, mailboxes.expires_at, mailboxes.retention_days, mailboxes.forward_to, mailboxes.forward_keep_copy, mailboxes.created_at, mailboxes.updated_at",
+			"mailboxes.id, mailboxes.user_id, mailboxes.domain_id, COALESCE(domains.domain, SUBSTRING_INDEX(mailboxes.address, '@', -1)) AS domain, mailboxes.local_part, mailboxes.address, mailboxes.status, mailboxes.permanent, mailboxes.expires_at, mailboxes.retention_days, mailboxes.forward_to, mailboxes.forward_keep_copy, mailboxes.created_at, mailboxes.updated_at",
 		).
 		Joins("LEFT JOIN domains ON domains.id = mailboxes.domain_id").
 		Where(where, args...).
@@ -258,6 +261,7 @@ func (r *MySQLRepository) list(ctx context.Context, where string, order string, 
 			LocalPart:       row.LocalPart,
 			Address:         row.Address,
 			Status:          row.Status,
+			Permanent:       row.Permanent,
 			ExpiresAt:       row.ExpiresAt,
 			RetentionDays:   row.RetentionDays,
 			ForwardTo:       row.ForwardTo,

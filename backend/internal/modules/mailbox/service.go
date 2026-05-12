@@ -61,7 +61,7 @@ func NewService(repo Repository, domainRepo domain.Repository, extras ...any) *S
 }
 
 func (s *Service) CreateMailbox(ctx context.Context, userID uint64, req CreateMailboxRequest, apiKeys ...portal.APIKey) (Mailbox, error) {
-	if req.ExpiresInHours <= 0 {
+	if !req.Permanent && req.ExpiresInHours <= 0 {
 		return Mailbox{}, ErrInvalidMailboxTTL
 	}
 
@@ -89,7 +89,12 @@ func (s *Service) CreateMailbox(ctx context.Context, userID uint64, req CreateMa
 		}
 	}
 
-	expiresAt := time.Now().Add(time.Duration(req.ExpiresInHours) * time.Hour)
+	var expiresAt time.Time
+	if req.Permanent {
+		expiresAt = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
+	} else {
+		expiresAt = time.Now().Add(time.Duration(req.ExpiresInHours) * time.Hour)
+	}
 	for range 5 {
 		localPart, err := ResolveLocalPart(req.LocalPart)
 		if err != nil {
@@ -103,6 +108,7 @@ func (s *Service) CreateMailbox(ctx context.Context, userID uint64, req CreateMa
 			LocalPart:     localPart,
 			Address:       localPart + "@" + selectedDomain.Domain,
 			Status:        "active",
+			Permanent:     req.Permanent,
 			ExpiresAt:     expiresAt,
 			RetentionDays: req.RetentionDays,
 			CreatedAt:     time.Now(),

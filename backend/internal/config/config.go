@@ -12,13 +12,14 @@ type Config struct {
 	CORSAllowedOrigins    []string
 	MySQLDSN              string
 	RedisAddr             string
+	RedisPassword         string
 	JWTSecret             string
 	MetricsToken          string
 	CloudflareAPIBaseURL  string
 	SpaceshipAPIBaseURL   string
 	LegacyMailSyncAPIURL  string
 	LegacyMailSyncEnabled bool
-	MailStoragePath       string
+	MailStoragePath        string
 }
 
 func MustLoadConfig() Config {
@@ -28,6 +29,7 @@ func MustLoadConfig() Config {
 		CORSAllowedOrigins:    splitEnv("CORS_ALLOWED_ORIGINS", "http://127.0.0.1:5173,http://localhost:5173"),
 		MySQLDSN:              envOrDefault("MYSQL_DSN", "root:root@tcp(mysql:3306)/shiro_email?parseTime=true"),
 		RedisAddr:             envOrDefault("REDIS_ADDR", "redis:6379"),
+		RedisPassword:         envOrDefault("REDIS_PASSWORD", ""),
 		JWTSecret:             envOrDefault("JWT_SECRET", "dev-secret"),
 		MetricsToken:          envOrDefault("METRICS_TOKEN", ""),
 		CloudflareAPIBaseURL:  envOrDefault("CLOUDFLARE_API_BASE_URL", "https://api.cloudflare.com/client/v4"),
