@@ -459,7 +459,7 @@ export function UserMailboxPage() {
   return (
     <WorkspacePage>
       {ConfirmDialog}
-      <div className="grid gap-6 xl:grid-cols-[1fr_0.92fr]">
+      <div className="grid gap-6 xl:grid-cols-[1fr_0.92fr] xl:items-start">
         <div className="space-y-6">
           <WorkspacePanel
             action={

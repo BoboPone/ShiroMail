@@ -161,41 +161,46 @@ export function MailboxMessageDetail({
 
   return (
     <WorkspacePanel
+      className="xl:sticky xl:top-20"
       description={selectedMailbox ? `到期时间 ${formatDate(selectedMailbox.expiresAt)}` : "先从左侧选择一个邮箱。"}
       title={selectedMailbox?.address ?? "消息预览"}
     >
       {selectedMailbox ? (
-        <div className="space-y-4">
-          <MailboxActions
-            selectedMailbox={selectedMailbox}
-            isExtendPending={isExtendPending}
-            isReleasePending={isReleasePending}
-            onExtend={onExtend}
-            onRelease={onRelease}
-            formatRemainingHours={formatRemainingHours}
-          />
-          <MessageList
-            messages={messages}
-            effectiveSelectedMessageId={effectiveSelectedMessageId}
-            onSelectMessage={onSelectMessage}
-            isLoading={isMessagesLoading}
-            formatDate={formatDate}
-            searchQuery={messagesSearchQuery}
-            onSearchQueryChange={onMessagesSearchQueryChange}
-            hasActiveSearch={hasActiveMessagesSearch}
-            searchPlaceholder={messagesSearchPlaceholder}
-            noResultsTitle={messagesNoResultsTitle}
-            noResultsHint={messagesNoResultsHint}
-            selectedIds={selectedIds}
-            onToggleSelection={toggleMessageSelection}
-            onToggleSelectAll={toggleSelectAll}
-            onBatchDelete={handleBatchDelete}
-            onBatchMarkRead={handleBatchMarkRead}
-            isBatchPending={isBatchPending}
-            mailboxAddress={selectedMailbox.address}
-          />
+        <div className="flex flex-col xl:h-[calc(100vh-12rem)]">
+          <div className="shrink-0">
+            <MailboxActions
+              selectedMailbox={selectedMailbox}
+              isExtendPending={isExtendPending}
+              isReleasePending={isReleasePending}
+              onExtend={onExtend}
+              onRelease={onRelease}
+              formatRemainingHours={formatRemainingHours}
+            />
+          </div>
+          <div className="mt-4 max-h-[280px] min-h-[160px] shrink-0 overflow-y-auto rounded-md border border-border/40 bg-muted/5">
+            <MessageList
+              messages={messages}
+              effectiveSelectedMessageId={effectiveSelectedMessageId}
+              onSelectMessage={onSelectMessage}
+              isLoading={isMessagesLoading}
+              formatDate={formatDate}
+              searchQuery={messagesSearchQuery}
+              onSearchQueryChange={onMessagesSearchQueryChange}
+              hasActiveSearch={hasActiveMessagesSearch}
+              searchPlaceholder={messagesSearchPlaceholder}
+              noResultsTitle={messagesNoResultsTitle}
+              noResultsHint={messagesNoResultsHint}
+              selectedIds={selectedIds}
+              onToggleSelection={toggleMessageSelection}
+              onToggleSelectAll={toggleSelectAll}
+              onBatchDelete={handleBatchDelete}
+              onBatchMarkRead={handleBatchMarkRead}
+              isBatchPending={isBatchPending}
+              mailboxAddress={selectedMailbox.address}
+            />
+          </div>
           {selectedMessageSummary ? (
-            <Card className="border-border/60 bg-muted/10 shadow-none">
+            <Card className="mt-4 min-h-0 flex-1 overflow-y-auto border-border/60 bg-muted/10 shadow-none">
               <CardContent className="space-y-4 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
