@@ -31,6 +31,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import type { ConsoleNavItem, ConsoleNavSection } from "../../lib/console-nav";
 import { ConsoleBreadcrumb } from "./console-breadcrumb";
 import { GlobalSearchDialog, useGlobalSearchShortcut } from "./global-search-dialog";
+import { HeaderMailboxSwitcher } from "./header-mailbox-switcher";
 import { KeyboardShortcutsIndicator, KeyboardShortcutsHelp } from "./keyboard-shortcuts-ui";
 import { NotificationDropdown } from "./notification-dropdown";
 import { SidebarMailboxList } from "./sidebar-mailbox-list";
@@ -218,6 +219,12 @@ export function ConsoleShell({
                   />
                 </div>
               </div>
+
+              {role === "user" ? (
+                <div className="hidden md:flex">
+                  <HeaderMailboxSwitcher />
+                </div>
+              ) : null}
 
               <div className="ml-auto flex items-center gap-1.5">
                 <Button
