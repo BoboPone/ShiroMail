@@ -872,6 +872,24 @@ const translation = {
     defaultConfirm: "确认",
     defaultCancel: "取消",
   },
+  inbox: {
+    title: "收件箱",
+    openInbox: "收件箱",
+    backToMailboxes: "邮箱列表",
+    backToList: "返回列表",
+    messageCount: "{{count}} 封邮件",
+    unreadCount: "{{count}} 封未读",
+    searchPlaceholder: "搜索邮件...",
+    loading: "正在加载邮件...",
+    noSearchResults: "没有匹配的邮件。",
+    noResultsTitle: "无结果",
+    emptyInbox: "还没有收到邮件，向此地址发送邮件即可开始使用。",
+    emptyTitle: "收件箱为空",
+    noMessageSelected: "未选择邮件",
+    selectMessageHint: "从左侧列表中选择一封邮件查看详情。",
+    loadingDetail: "正在加载邮件详情...",
+    detailUnavailable: "无法加载此邮件，请重试。",
+  },
 } as const;
 
 export default { translation } as const;

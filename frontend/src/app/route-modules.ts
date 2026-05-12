@@ -14,6 +14,7 @@ const routeModuleLoaders = {
   userConsoleLayout: () => import("../features/user/pages/user-console-layout"),
   userDashboard: () => import("../features/user/pages/dashboard-page"),
   userMailboxes: () => import("../features/user/pages/mailboxes-page"),
+  userInbox: () => import("../features/user/pages/inbox-page"),
   userNotices: () => import("../features/user/pages/notices-page"),
   userFeedback: () => import("../features/user/pages/feedback-page"),
   userApiKeys: () => import("../features/user/pages/api-keys-page"),

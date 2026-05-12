@@ -25,6 +25,7 @@ const ResetPasswordPage = lazyRoute("resetPassword", "ResetPasswordPage");
 const UserConsoleLayout = lazyRoute("userConsoleLayout", "UserConsoleLayout");
 const UserDashboardPage = lazyRoute("userDashboard", "UserDashboardPage");
 const UserMailboxPage = lazyRoute("userMailboxes", "UserMailboxPage");
+const UserInboxPage = lazyRoute("userInbox", "InboxPage");
 const UserNoticesPage = lazyRoute("userNotices", "UserNoticesPage");
 const UserFeedbackPage = lazyRoute("userFeedback", "UserFeedbackPage");
 const UserApiKeysPage = lazyRoute("userApiKeys", "UserApiKeysPage");
@@ -192,6 +193,14 @@ const router = createBrowserRouter([
         element: (
           <RouteBoundary>
             <UserMailboxPage />
+          </RouteBoundary>
+        ),
+      },
+      {
+        path: "mailboxes/:id/inbox",
+        element: (
+          <RouteBoundary>
+            <UserInboxPage />
           </RouteBoundary>
         ),
       },

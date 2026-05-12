@@ -1,5 +1,8 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { WorkspaceBadge } from "@/components/layout/workspace-ui";
+import { Inbox } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import type { MailboxItem } from "../api";
 
 type Props = {
@@ -11,6 +14,9 @@ type Props = {
 };
 
 export function MailboxCard({ mailbox, active, onSelect, formatDate, formatRemainingHours }: Props) {
+  const navigate = useNavigate();
+  const { t } = useTranslation();
+
   return (
     <button
       className="block w-full text-left"
@@ -24,7 +30,28 @@ export function MailboxCard({ mailbox, active, onSelect, formatDate, formatRemai
               <div className="text-sm font-medium">{mailbox.address}</div>
               <p className="text-xs text-muted-foreground">{mailbox.status === "active" ? "活跃中" : "已释放"}</p>
             </div>
-            <WorkspaceBadge>{mailbox.domain}</WorkspaceBadge>
+            <div className="flex items-center gap-2">
+              <span
+                role="button"
+                tabIndex={0}
+                className="inline-flex items-center gap-1 rounded-md border border-border/60 px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/dashboard/mailboxes/${mailbox.id}/inbox`);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    navigate(`/dashboard/mailboxes/${mailbox.id}/inbox`);
+                  }
+                }}
+              >
+                <Inbox className="size-3" />
+                {t("inbox.openInbox")}
+              </span>
+              <WorkspaceBadge>{mailbox.domain}</WorkspaceBadge>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span>剩余 {formatRemainingHours(mailbox.expiresAt)}</span>

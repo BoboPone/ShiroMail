@@ -895,6 +895,24 @@ const translation = {
     defaultConfirm: "Confirm",
     defaultCancel: "Cancel",
   },
+  inbox: {
+    title: "Inbox",
+    openInbox: "Inbox",
+    backToMailboxes: "Mailboxes",
+    backToList: "Back to list",
+    messageCount: "{{count}} messages",
+    unreadCount: "{{count}} unread",
+    searchPlaceholder: "Search messages...",
+    loading: "Loading messages...",
+    noSearchResults: "No messages match your search.",
+    noResultsTitle: "No results",
+    emptyInbox: "No messages yet. Send an email to this address to get started.",
+    emptyTitle: "Inbox is empty",
+    noMessageSelected: "No message selected",
+    selectMessageHint: "Select a message from the list to view its contents.",
+    loadingDetail: "Loading message details...",
+    detailUnavailable: "Unable to load this message. Please try again.",
+  },
 } as const;
 
 export default { translation } as const;
