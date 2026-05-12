@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Info, Megaphone, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchNotices, type NoticeItem } from "../api";
@@ -24,7 +23,6 @@ function persistDismissedId(id: number) {
 }
 
 export function SystemNoticeBanner() {
-  const { t } = useTranslation();
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(getDismissedIds);
 
   const { data: notices } = useQuery({

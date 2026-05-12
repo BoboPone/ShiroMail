@@ -28,7 +28,7 @@ export function WorkspacePanel({
   className,
   children,
 }: {
-  title: string;
+  title: ReactNode;
   description?: string;
   action?: ReactNode;
   className?: string;

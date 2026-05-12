@@ -33,7 +33,7 @@ export function GlobalSearchDialog({ open, onOpenChange }: { open: boolean; onOp
     }
   }, [open]);
 
-  const handleSelect = useCallback((mailboxId: number) => {
+  const handleSelect = useCallback((_mailboxId: number) => {
     onOpenChange(false);
     navigate(`/dashboard/mailboxes`);
   }, [navigate, onOpenChange]);

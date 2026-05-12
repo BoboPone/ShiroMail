@@ -146,14 +146,16 @@ export function MailboxCreateForm({
         </div>
 
         <div className="flex items-center gap-4">
-          <WorkspaceField label="邮箱前缀" className="flex-1">
-            <Input
-              onChange={(event) => handleLocalPartChange(event.target.value)}
-              placeholder="留空则自动生成"
-              value={localPart}
-            />
-            {localPartError ? <p className="text-xs text-destructive">{localPartError}</p> : null}
-          </WorkspaceField>
+          <div className="flex-1">
+            <WorkspaceField label="邮箱前缀">
+              <Input
+                onChange={(event) => handleLocalPartChange(event.target.value)}
+                placeholder="留空则自动生成"
+                value={localPart}
+              />
+              {localPartError ? <p className="text-xs text-destructive">{localPartError}</p> : null}
+            </WorkspaceField>
+          </div>
 
           <div className="flex items-center gap-2 pt-5">
             <Switch
