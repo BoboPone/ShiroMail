@@ -685,6 +685,7 @@ func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 	adminGroup.PUT("/users/:id/roles", adminController.UpdateUserRoles)
 	adminGroup.POST("/users/:id/ban", adminController.BanUser)
 	adminGroup.POST("/users/:id/unban", adminController.UnbanUser)
+	adminGroup.POST("/users/batch-action", adminController.BatchUserAction)
 	adminGroup.GET("/domains", adminController.ListDomains)
 	adminGroup.POST("/domains/generate", domainController.GenerateAdmin)
 	adminGroup.GET("/domain-providers", adminController.ListDomainProviders)

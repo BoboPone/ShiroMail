@@ -244,6 +244,36 @@ func (c *Controller) UnbanUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, item)
 }
 
+func (c *Controller) BatchUserAction(ctx *gin.Context) {
+	actorID, ok := currentUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+
+	var req struct {
+		IDs    []uint64 `json:"ids"`
+		Action string   `json:"action"`
+	}
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid request"})
+		return
+	}
+	if len(req.IDs) == 0 {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "ids must not be empty"})
+		return
+	}
+	switch req.Action {
+	case "ban", "unban", "delete":
+	default:
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "action must be ban, unban, or delete"})
+		return
+	}
+
+	result := c.service.BatchUserAction(ctx, actorID, req.IDs, req.Action)
+	ctx.JSON(http.StatusOK, result)
+}
+
 func (c *Controller) ListDomains(ctx *gin.Context) {
 	items, err := c.service.ListDomains(ctx)
 	if err != nil {

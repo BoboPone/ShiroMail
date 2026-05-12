@@ -26,7 +26,14 @@ import {
 } from "@/components/layout/workspace-ui";
 import { getAPIErrorMessage } from "@/lib/http";
 import { paginateItems } from "@/lib/pagination";
-import { deleteAdminUser, fetchAdminUsers, getExportUsersURL, updateAdminUser, type AdminUser } from "../api";
+import {
+  batchAdminUserAction,
+  deleteAdminUser,
+  fetchAdminUsers,
+  getExportUsersURL,
+  updateAdminUser,
+  type AdminUser,
+} from "../api";
 
 const ROLE_OPTIONS = ["user", "admin"] as const;
 const STATUS_OPTIONS = [
@@ -65,6 +72,7 @@ export function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [usersPage, setUsersPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const { confirm, ConfirmDialog } = useConfirm();
   const [formState, setFormState] = useState<UserEditForm>({
     username: "",
@@ -83,6 +91,33 @@ export function AdminUsersPage() {
     () => paginateItems(users, usersPage, ADMIN_USERS_PAGE_SIZE),
     [users, usersPage],
   );
+
+  // Batch selection helpers
+  const pageUserIds = paginatedUsers.items.map((u) => u.id);
+  const selectablePageIds = pageUserIds.filter((id) => id !== currentUserId);
+  const allPageSelected = selectablePageIds.length > 0 && selectablePageIds.every((id) => selectedIds.has(id));
+  const somePageSelected = selectablePageIds.some((id) => selectedIds.has(id));
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        for (const id of selectablePageIds) next.delete(id);
+      } else {
+        for (const id of selectablePageIds) next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const updateUserMutation = useMutation({
     mutationFn: ({ userId, input }: { userId: number; input: UserEditForm }) =>
@@ -109,6 +144,7 @@ export function AdminUsersPage() {
     mutationFn: (userId: number) => deleteAdminUser(userId),
     onSuccess: async (_result, userId) => {
       setFeedback("用户已删除。");
+      setSelectedIds((prev) => { const next = new Set(prev); next.delete(userId); return next; });
       queryClient.setQueryData<AdminUser[]>(["admin-users"], (current) =>
         (current ?? []).filter((user) => user.id !== userId),
       );
@@ -118,6 +154,44 @@ export function AdminUsersPage() {
       setFeedback(getAPIErrorMessage(error, "删除用户失败，请先清理该用户的邮箱、域名或服务商资源。"));
     },
   });
+
+  const batchMutation = useMutation({
+    mutationFn: ({ ids, action }: { ids: number[]; action: "ban" | "unban" | "delete" }) =>
+      batchAdminUserAction(ids, action),
+    onSuccess: async (result) => {
+      const successCount = result.succeeded.length;
+      const failCount = result.failed.length;
+      if (failCount === 0) {
+        setFeedback(`批量操作完成，${successCount} 个用户已处理。`);
+      } else {
+        const reasons = result.failed.slice(0, 3).map((f) => f.message).join("; ");
+        setFeedback(`${successCount} 个成功，${failCount} 个失败: ${reasons}`);
+      }
+      setSelectedIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+    },
+    onError: (error) => {
+      setFeedback(getAPIErrorMessage(error, "批量操作失败，请稍后重试。"));
+    },
+  });
+
+  async function handleBatchAction(action: "ban" | "unban" | "delete") {
+    const ids = [...selectedIds];
+    const labels: Record<string, string> = { ban: "封禁", unban: "解封", delete: "删除" };
+    const confirmed = await confirm({
+      title: `批量${labels[action]} ${ids.length} 个用户？`,
+      description: action === "delete"
+        ? "删除操作不可撤销，仍绑定资源的用户将跳过。"
+        : `将对选中的 ${ids.length} 个用户执行${labels[action]}操作。`,
+      confirmLabel: `确认${labels[action]}`,
+      cancelLabel: "取消",
+      variant: action === "delete" ? "danger" : "default",
+    });
+    if (confirmed) {
+      setFeedback(null);
+      batchMutation.mutate({ ids, action });
+    }
+  }
 
   function openEditDialog(user: AdminUser) {
     setSelectedUser(user);
@@ -297,46 +371,67 @@ export function AdminUsersPage() {
 
         {users.length ? (
           <div className="space-y-3">
+            <div className="flex items-center gap-3 px-1">
+              <Checkbox
+                aria-label="全选当前页"
+                checked={allPageSelected ? true : somePageSelected ? "indeterminate" : false}
+                onCheckedChange={toggleSelectAll}
+              />
+              <span className="text-xs text-muted-foreground">
+                {selectedIds.size > 0 ? `已选 ${selectedIds.size} 个用户` : "全选当前页"}
+              </span>
+            </div>
             {paginatedUsers.items.map((user) => {
               const isCurrentUser = user.id === currentUserId;
               return (
-                <WorkspaceListRow
-                  description={`${user.email} · ${user.status}${user.emailVerified ? " · 已验证" : " · 未验证"}`}
-                  key={user.id}
-                  meta={
-                    <>
-                      <span className="rounded-full border border-border/60 px-2 py-1">{user.roles.join(", ")}</span>
-                      <span>{user.mailboxes} 个邮箱</span>
-                      <Button onClick={() => navigate(`/admin/users/${user.id}`)} size="sm" variant="ghost">
-                        查看
-                      </Button>
-                      <Button onClick={() => openEditDialog(user)} size="sm" variant="outline">
-                        编辑
-                      </Button>
-                      <Button
-                        disabled={isCurrentUser}
-                        onClick={async () => {
-                          const confirmed = await confirm({
-                            title: "删除用户？",
-                            description: `确认删除用户 ${user.username}？如果该用户仍绑定邮箱、域名或服务商资源，后端会阻止这次删除。`,
-                            confirmLabel: "确认删除",
-                            cancelLabel: "取消",
-                            variant: "danger",
-                          });
-                          if (confirmed) {
-                            setFeedback(null);
-                            deleteUserMutation.mutate(user.id);
-                          }
-                        }}
-                        size="sm"
-                        variant="destructive"
-                      >
-                        删除
-                      </Button>
-                    </>
-                  }
-                  title={user.username}
-                />
+                <div className="flex items-start gap-3" key={user.id}>
+                  <div className="pt-4">
+                    <Checkbox
+                      aria-label={`选择 ${user.username}`}
+                      checked={selectedIds.has(user.id)}
+                      disabled={isCurrentUser}
+                      onCheckedChange={() => toggleSelect(user.id)}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <WorkspaceListRow
+                      description={`${user.email} · ${user.status}${user.emailVerified ? " · 已验证" : " · 未验证"}`}
+                      meta={
+                        <>
+                          <span className="rounded-full border border-border/60 px-2 py-1">{user.roles.join(", ")}</span>
+                          <span>{user.mailboxes} 个邮箱</span>
+                          <Button onClick={() => navigate(`/admin/users/${user.id}`)} size="sm" variant="ghost">
+                            查看
+                          </Button>
+                          <Button onClick={() => openEditDialog(user)} size="sm" variant="outline">
+                            编辑
+                          </Button>
+                          <Button
+                            disabled={isCurrentUser}
+                            onClick={async () => {
+                              const confirmed = await confirm({
+                                title: "删除用户？",
+                                description: `确认删除用户 ${user.username}？如果该用户仍绑定邮箱、域名或服务商资源，后端会阻止这次删除。`,
+                                confirmLabel: "确认删除",
+                                cancelLabel: "取消",
+                                variant: "danger",
+                              });
+                              if (confirmed) {
+                                setFeedback(null);
+                                deleteUserMutation.mutate(user.id);
+                              }
+                            }}
+                            size="sm"
+                            variant="destructive"
+                          >
+                            删除
+                          </Button>
+                        </>
+                      }
+                      title={user.username}
+                    />
+                  </div>
+                </div>
               );
             })}
             <PaginationControls
@@ -350,6 +445,43 @@ export function AdminUsersPage() {
           </div>
         ) : (
           <WorkspaceEmpty description="当前还没有可管理用户。" title="暂无用户" />
+        )}
+
+        {selectedIds.size > 0 && (
+          <div className="fixed inset-x-0 bottom-6 z-50 mx-auto flex w-fit items-center gap-3 rounded-xl border border-border/60 bg-card px-5 py-3 shadow-lg">
+            <span className="text-sm font-medium">已选 {selectedIds.size} 个用户</span>
+            <Button
+              disabled={batchMutation.isPending}
+              onClick={() => handleBatchAction("ban")}
+              size="sm"
+              variant="outline"
+            >
+              封禁
+            </Button>
+            <Button
+              disabled={batchMutation.isPending}
+              onClick={() => handleBatchAction("unban")}
+              size="sm"
+              variant="outline"
+            >
+              解封
+            </Button>
+            <Button
+              disabled={batchMutation.isPending}
+              onClick={() => handleBatchAction("delete")}
+              size="sm"
+              variant="destructive"
+            >
+              删除
+            </Button>
+            <Button
+              onClick={() => setSelectedIds(new Set())}
+              size="sm"
+              variant="ghost"
+            >
+              取消选择
+            </Button>
+          </div>
         )}
       </WorkspacePanel>
     </WorkspacePage>

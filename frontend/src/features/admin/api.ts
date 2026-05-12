@@ -307,6 +307,22 @@ export async function deleteAdminUser(userId: number) {
   return data;
 }
 
+export type BatchUserActionResult = {
+  succeeded: number[];
+  failed: Array<{ id: number; message: string }>;
+};
+
+export async function batchAdminUserAction(
+  ids: number[],
+  action: "ban" | "unban" | "delete",
+) {
+  const { data } = await http.post<BatchUserActionResult>(
+    "/admin/users/batch-action",
+    { ids, action },
+  );
+  return data;
+}
+
 export async function fetchAdminDomains() {
   const { data } = await http.get<{ items: DomainOption[] }>("/admin/domains");
   return data.items;

@@ -476,6 +476,50 @@ func (s *Service) DeleteUser(ctx context.Context, actorID uint64, userID uint64)
 	return nil
 }
 
+// BatchUserActionResult holds per-user outcome for a batch operation.
+type BatchUserActionResult struct {
+	Succeeded []uint64 `json:"succeeded"`
+	Failed    []BatchUserActionFailure `json:"failed"`
+}
+
+type BatchUserActionFailure struct {
+	ID      uint64 `json:"id"`
+	Message string `json:"message"`
+}
+
+// BatchUserAction applies ban, unban, or delete to multiple users at once.
+func (s *Service) BatchUserAction(ctx context.Context, actorID uint64, ids []uint64, action string) BatchUserActionResult {
+	result := BatchUserActionResult{
+		Succeeded: make([]uint64, 0, len(ids)),
+		Failed:    make([]BatchUserActionFailure, 0),
+	}
+
+	for _, userID := range ids {
+		var err error
+		switch action {
+		case "ban":
+			_, err = s.BanUser(ctx, actorID, userID, "batch action")
+		case "unban":
+			_, err = s.UnbanUser(ctx, actorID, userID)
+		case "delete":
+			err = s.DeleteUser(ctx, actorID, userID)
+		default:
+			err = fmt.Errorf("unsupported action: %s", action)
+		}
+
+		if err != nil {
+			result.Failed = append(result.Failed, BatchUserActionFailure{
+				ID:      userID,
+				Message: err.Error(),
+			})
+		} else {
+			result.Succeeded = append(result.Succeeded, userID)
+		}
+	}
+
+	return result
+}
+
 func (s *Service) Overview(ctx context.Context) (*OverviewDTO, error) {
 	if s.cache != nil {
 		var cached OverviewDTO
