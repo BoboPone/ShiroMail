@@ -28,6 +28,7 @@ const routeModuleLoaders = {
   userBalance: () => import("../features/user/pages/balance-page"),
   userRewards: () => import("../features/user/pages/rewards-page"),
   userSettings: () => import("../features/user/pages/settings-page"),
+  userApiPlayground: () => import("../features/user/pages/api-playground-page"),
   adminConsoleLayout: () => import("../features/admin/pages/admin-console-layout"),
   adminOverview: () => import("../features/admin/pages/admin-overview-page"),
   adminUsers: () => import("../features/admin/pages/users-page"),

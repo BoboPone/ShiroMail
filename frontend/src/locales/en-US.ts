@@ -57,6 +57,7 @@ const translation = {
       dns: "DNS",
       extractors: "Extractors",
       webhooks: "Webhooks",
+      apiPlayground: "API Playground",
       docs: "Docs",
       billing: "Billing",
       balance: "Balance",
@@ -964,6 +965,17 @@ const translation = {
     confirmDelete: "Delete this tag? Associated mailboxes will be unbound automatically.",
     filterAll: "All",
     manageTags: "Manage Tags",
+  },
+  apiPlayground: {
+    title: "API Playground",
+    description: "Test API endpoints and inspect request/response details",
+    send: "Send Request",
+    preset: "Presets",
+    response: "Response",
+    requestBody: "Request Body",
+    headers: "Headers",
+    noResponse: "Send a request to see the response here",
+    duration: "Duration",
   },
 } as const;
 

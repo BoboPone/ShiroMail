@@ -39,6 +39,7 @@ const UserBillingPage = lazyRoute("userBilling", "UserBillingPage");
 const UserBalancePage = lazyRoute("userBalance", "UserBalancePage");
 const UserRewardsPage = lazyRoute("userRewards", "UserRewardsPage");
 const UserSettingsPage = lazyRoute("userSettings", "UserSettingsPage");
+const UserApiPlaygroundPage = lazyRoute("userApiPlayground", "ApiPlaygroundPage");
 
 const AdminConsoleLayout = lazyRoute("adminConsoleLayout", "AdminConsoleLayout");
 const AdminOverviewPage = lazyRoute("adminOverview", "AdminOverviewPage");
@@ -305,6 +306,14 @@ const router = createBrowserRouter([
         element: (
           <RouteBoundary>
             <UserSettingsPage />
+          </RouteBoundary>
+        ),
+      },
+      {
+        path: "api-playground",
+        element: (
+          <RouteBoundary>
+            <UserApiPlaygroundPage />
           </RouteBoundary>
         ),
       },

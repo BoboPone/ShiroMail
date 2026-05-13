@@ -19,6 +19,7 @@ import {
   ScrollText,
   Settings,
   SlidersHorizontal,
+  TerminalSquare,
   UserRound,
   Users,
   Wallet,
@@ -72,6 +73,7 @@ export const userSidebarSections: ConsoleNavSection[] = [
     items: [
       { labelKey: "nav.user.apiKeys", to: "/dashboard/api-keys", icon: KeyRound },
       { labelKey: "nav.user.webhooks", to: "/dashboard/webhooks", icon: Webhook },
+      { labelKey: "nav.user.apiPlayground", to: "/dashboard/api-playground", icon: TerminalSquare },
       { labelKey: "nav.user.docs", to: "/dashboard/docs", icon: BookOpen },
     ],
   },
