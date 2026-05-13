@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createAdminApiKey,
@@ -148,9 +149,11 @@ describe("AdminApiKeysPage", () => {
     });
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <AdminApiKeysPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <AdminApiKeysPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText("worker")).toBeInTheDocument();
@@ -169,9 +172,11 @@ describe("AdminApiKeysPage", () => {
     });
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <AdminApiKeysPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <AdminApiKeysPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     expect(screen.queryByPlaceholderText("输入用户 ID")).not.toBeInTheDocument();
@@ -220,9 +225,11 @@ describe("AdminApiKeysPage", () => {
     });
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <AdminApiKeysPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <AdminApiKeysPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "轮换" }));
@@ -256,9 +263,11 @@ describe("AdminApiKeysPage", () => {
     });
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <AdminApiKeysPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <AdminApiKeysPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "新增 API Key" }));
@@ -310,9 +319,11 @@ describe("AdminApiKeysPage", () => {
     });
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <AdminApiKeysPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <AdminApiKeysPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText("worker-active")).toBeInTheDocument();

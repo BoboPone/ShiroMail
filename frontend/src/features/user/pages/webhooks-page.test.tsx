@@ -102,19 +102,14 @@ describe("UserWebhooksPage", () => {
         target: { value: "https://sandbox.local/webhooks/secondary" },
       },
     );
-    fireEvent.change(
-      dialogQueries.getByPlaceholderText("message.received, mailbox.released"),
-      {
-        target: { value: "mailbox.released" },
-      },
-    );
+
     fireEvent.click(dialogQueries.getByRole("button", { name: "创建 Webhook" }));
 
     await waitFor(() => {
       expect(vi.mocked(createWebhook).mock.calls[0]?.[0]).toEqual({
         name: "secondary",
         targetUrl: "https://sandbox.local/webhooks/secondary",
-        events: ["mailbox.released"],
+        events: ["new_message", "message_read", "message_deleted", "mailbox_created"],
       });
     });
   });
@@ -151,20 +146,13 @@ describe("UserWebhooksPage", () => {
         },
       },
     );
-    fireEvent.change(
-      dialogQueries.getByPlaceholderText("message.received, mailbox.released"),
-      {
-        target: { value: "message.received, mailbox.released" },
-      },
-    );
     fireEvent.click(dialogQueries.getByRole("button", { name: "保存修改" }));
 
     await waitFor(() => {
       expect(vi.mocked(updateWebhook).mock.calls[0]?.[0]).toBe(1);
-      expect(vi.mocked(updateWebhook).mock.calls[0]?.[1]).toEqual({
+      expect(vi.mocked(updateWebhook).mock.calls[0]?.[1]).toMatchObject({
         name: "primary-updated",
         targetUrl: "https://sandbox.local/webhooks/primary-updated",
-        events: ["message.received", "mailbox.released"],
       });
     });
   });

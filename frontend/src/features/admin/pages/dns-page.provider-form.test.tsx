@@ -418,7 +418,7 @@ describe("AdminDnsPage provider form", () => {
     );
     fireEvent.click(await screen.findByRole("button", { name: "example.com 查看 Records" }));
 
-    await screen.findByText("v=spf1 -all");
+    await screen.findByText("\"v=spf1 -all\"");
 
     fireEvent.click(await screen.findByRole("button", { name: "删除记录" }));
 

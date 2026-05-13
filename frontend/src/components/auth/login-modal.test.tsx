@@ -152,18 +152,18 @@ describe("LoginModal", () => {
     renderModal();
 
     expect(
-      await screen.findByText("Registration currently requires an invite"),
+      await screen.findByText("当前站点仅支持邀请码注册"),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "New accounts must complete email verification before activation",
+        "新账号需要完成邮箱验证后才能激活",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Continue with Google" }),
+      screen.getByRole("button", { name: "继续使用 Google" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Create account" }),
+      screen.getByRole("button", { name: "创建账号" }),
     ).toBeEnabled();
   });
 
@@ -177,7 +177,7 @@ describe("LoginModal", () => {
     renderModal();
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Continue with Google" }),
+      await screen.findByRole("button", { name: "继续使用 Google" }),
     );
 
     await waitFor(() => {
@@ -191,30 +191,30 @@ describe("LoginModal", () => {
   it("switches to register mode and submits register request", async () => {
     renderModal();
 
-    await screen.findByText("Registration currently requires an invite");
+    await screen.findByText("当前站点仅支持邀请码注册");
     const createAccountButton = screen.getByRole("button", {
-      name: "Create account",
+      name: "创建账号",
     });
     await waitFor(() => {
       expect(createAccountButton).toBeEnabled();
     });
     fireEvent.click(createAccountButton);
 
-    await screen.findByText("Create account · Shiro Email");
+    await screen.findByText("创建账号 · Shiro Email");
 
-    fireEvent.change(screen.getByLabelText("Username"), {
+    fireEvent.change(screen.getByLabelText("用户名"), {
       target: { value: "new-user" },
     });
-    fireEvent.change(screen.getByLabelText("Email"), {
+    fireEvent.change(screen.getByLabelText("邮箱"), {
       target: { value: "new-user@example.com" },
     });
-    fireEvent.change(screen.getByLabelText("Password"), {
+    fireEvent.change(screen.getByLabelText("密码"), {
       target: { value: "Secret123!" },
     });
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Create account and enter workspace",
+        name: "创建并进入工作台",
       }),
     );
 
@@ -230,16 +230,16 @@ describe("LoginModal", () => {
   it("requests an email reset code and submits a password reset", async () => {
     renderModal();
 
-    await screen.findByText("Registration currently requires an invite");
-    fireEvent.click(screen.getByRole("button", { name: "Forgot password" }));
+    await screen.findByText("当前站点仅支持邀请码注册");
+    fireEvent.click(screen.getByRole("button", { name: "忘记密码" }));
 
-    await screen.findByText("Reset your password");
+    await screen.findByText("重置密码");
 
-    fireEvent.change(screen.getByLabelText("Account"), {
+    fireEvent.change(screen.getByLabelText("账号"), {
       target: { value: "new-user@example.com" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Send verification code" }),
+      screen.getByRole("button", { name: "发送验证码" }),
     );
 
     await waitFor(() => {
@@ -250,17 +250,17 @@ describe("LoginModal", () => {
 
     expect(
       await screen.findByText(
-        "A verification code has been sent to your account email. Enter it with a new password to finish the reset.",
+        "验证码已发送到你的账户邮箱，请输入验证码和新密码完成重置。",
       ),
     ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Verification code"), {
+    fireEvent.change(screen.getByLabelText("验证码"), {
       target: { value: "123456" },
     });
-    fireEvent.change(screen.getByLabelText("New password"), {
+    fireEvent.change(screen.getByLabelText("新密码"), {
       target: { value: "BetterSecret456!" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Reset password" }));
+    fireEvent.click(screen.getByRole("button", { name: "重置密码" }));
 
     await waitFor(() => {
       expect(vi.mocked(resetPassword)).toHaveBeenCalledWith({
@@ -274,17 +274,17 @@ describe("LoginModal", () => {
   it("resends reset verification code from reset mode", async () => {
     renderModal();
 
-    await screen.findByText("Registration currently requires an invite");
-    fireEvent.click(screen.getByRole("button", { name: "Forgot password" }));
-    fireEvent.change(screen.getByLabelText("Account"), {
+    await screen.findByText("当前站点仅支持邀请码注册");
+    fireEvent.click(screen.getByRole("button", { name: "忘记密码" }));
+    fireEvent.change(screen.getByLabelText("账号"), {
       target: { value: "new-user@example.com" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Send verification code" }),
+      screen.getByRole("button", { name: "发送验证码" }),
     );
 
-    await screen.findByText("Verification code sent to new-user@example.com");
-    fireEvent.click(screen.getByRole("button", { name: "Resend code" }));
+    await screen.findByText("验证码已发送至 new-user@example.com");
+    fireEvent.click(screen.getByRole("button", { name: "重新发送验证码" }));
 
     await waitFor(() => {
       expect(vi.mocked(resendEmailVerification)).toHaveBeenCalledWith({
@@ -306,21 +306,21 @@ describe("LoginModal", () => {
 
     renderModal();
 
-    await screen.findByText("Registration currently requires an invite");
-    fireEvent.change(screen.getByLabelText("Account"), {
+    await screen.findByText("当前站点仅支持邀请码注册");
+    fireEvent.change(screen.getByLabelText("账号"), {
       target: { value: "new-user@example.com" },
     });
-    fireEvent.change(screen.getByLabelText("Password"), {
+    fireEvent.change(screen.getByLabelText("密码"), {
       target: { value: "Secret123!" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
 
-    expect(await screen.findByText("Two-factor verification")).toBeInTheDocument();
+    expect(await screen.findByText("两步验证")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Verification code"), {
+    fireEvent.change(screen.getByLabelText("验证码"), {
       target: { value: "123456" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Verify and continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "验证并继续" }));
 
     await waitFor(() => {
       expect(vi.mocked(verifyLoginTOTP)).toHaveBeenCalledWith({
@@ -346,11 +346,11 @@ describe("LoginModal", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("Registration currently requires an invite");
-    fireEvent.change(screen.getByLabelText("Account"), {
+    await screen.findByText("当前站点仅支持邀请码注册");
+    fireEvent.change(screen.getByLabelText("账号"), {
       target: { value: "admin@example.com" },
     });
-    fireEvent.change(screen.getByLabelText("Password"), {
+    fireEvent.change(screen.getByLabelText("密码"), {
       target: { value: "Secret123!" },
     });
 
@@ -370,7 +370,7 @@ describe("LoginModal", () => {
       </MemoryRouter>,
     );
 
-    expect((await screen.findByLabelText("Account"))).toHaveValue("");
-    expect(screen.getByLabelText("Password")).toHaveValue("");
+    expect((await screen.findByLabelText("账号"))).toHaveValue("");
+    expect(screen.getByLabelText("密码")).toHaveValue("");
   });
 });

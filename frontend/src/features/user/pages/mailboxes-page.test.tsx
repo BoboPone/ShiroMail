@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createCustomMailbox,
@@ -20,11 +21,15 @@ vi.mock("../api", () => ({
   fetchMailboxMessages: vi.fn(),
   fetchMailboxMessageDetail: vi.fn(),
   fetchMailboxMessageExtractions: vi.fn(),
+  fetchMailboxTags: vi.fn().mockResolvedValue([]),
   createCustomMailbox: vi.fn(),
   extendMailbox: vi.fn(),
   releaseMailbox: vi.fn(),
   downloadMailboxMessageRaw: vi.fn(),
   downloadMailboxMessageAttachment: vi.fn(),
+  fetchMailboxMessageAttachmentBlob: vi.fn(),
+  fetchMailboxMessageParsedRaw: vi.fn(),
+  fetchMailboxMessageRawText: vi.fn(),
 }));
 
 describe("UserMailboxPage", () => {
@@ -204,9 +209,11 @@ describe("UserMailboxPage", () => {
 
     render(
       <MemoryRouter>
-        <QueryClientProvider client={queryClient}>
-          <UserMailboxPage />
-        </QueryClientProvider>
+        <TooltipProvider>
+          <QueryClientProvider client={queryClient}>
+            <UserMailboxPage />
+          </QueryClientProvider>
+        </TooltipProvider>
       </MemoryRouter>,
     );
 
@@ -282,9 +289,11 @@ describe("UserMailboxPage", () => {
 
     render(
       <MemoryRouter>
-        <QueryClientProvider client={queryClient}>
-          <UserMailboxPage />
-        </QueryClientProvider>
+        <TooltipProvider>
+          <QueryClientProvider client={queryClient}>
+            <UserMailboxPage />
+          </QueryClientProvider>
+        </TooltipProvider>
       </MemoryRouter>,
     );
 
@@ -342,9 +351,11 @@ describe("UserMailboxPage", () => {
 
     render(
       <MemoryRouter initialEntries={["/dashboard/mailboxes?domainId=2"]}>
-        <QueryClientProvider client={queryClient}>
-          <UserMailboxPage />
-        </QueryClientProvider>
+        <TooltipProvider>
+          <QueryClientProvider client={queryClient}>
+            <UserMailboxPage />
+          </QueryClientProvider>
+        </TooltipProvider>
       </MemoryRouter>,
     );
 
@@ -362,9 +373,11 @@ describe("UserMailboxPage", () => {
 
     render(
       <MemoryRouter>
-        <QueryClientProvider client={queryClient}>
-          <UserMailboxPage />
-        </QueryClientProvider>
+        <TooltipProvider>
+          <QueryClientProvider client={queryClient}>
+            <UserMailboxPage />
+          </QueryClientProvider>
+        </TooltipProvider>
       </MemoryRouter>,
     );
 

@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createApiKey,
@@ -160,9 +161,11 @@ describe("UserApiKeysPage", () => {
     });
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <UserApiKeysPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <UserApiKeysPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText("worker")).toBeInTheDocument();
@@ -181,9 +184,11 @@ describe("UserApiKeysPage", () => {
     });
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <UserApiKeysPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <UserApiKeysPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     expect(
@@ -302,9 +307,11 @@ describe("UserApiKeysPage", () => {
     });
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <UserApiKeysPage />
-      </QueryClientProvider>,
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <UserApiKeysPage />
+        </QueryClientProvider>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText("active-worker")).toBeInTheDocument();
