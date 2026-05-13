@@ -59,7 +59,7 @@ jobs:
           done
 
           for i in {1..30}; do
-            if redis-cli -h 127.0.0.1 -p 6379 ping | grep -q PONG; then
+            if (echo PING; sleep 0.1) | nc -q 1 127.0.0.1 6379 | grep -q PONG; then
               break
             fi
             if [ "$i" -eq 30 ]; then

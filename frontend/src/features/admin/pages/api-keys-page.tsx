@@ -191,7 +191,7 @@ export function AdminApiKeysPage() {
 
   const canAddBinding = bindingDraft.domainId !== "";
   const canSubmit = name.trim() !== "";
-  const activeApiKeys = apiKeysQuery.data ?? [];
+  const activeApiKeys = useMemo(() => apiKeysQuery.data ?? [], [apiKeysQuery.data]);
   const paginatedApiKeys = useMemo(
     () => paginateItems(activeApiKeys, apiKeysPage, apiKeysPageSize),
     [activeApiKeys, apiKeysPage, apiKeysPageSize],

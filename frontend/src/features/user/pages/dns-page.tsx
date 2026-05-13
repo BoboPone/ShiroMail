@@ -1199,7 +1199,7 @@ export function UserDnsPage() {
       window.clearInterval(intervalId);
       setIsAutoRefreshing(false);
     };
-  }, [hasPendingVerifications, activeZoneWorkspace?.providerId, activeZoneWorkspace?.zoneId, activeZoneWorkspace?.zoneName]);
+  }, [hasPendingVerifications, activeZoneWorkspace]);
 
   const requestedDomainUsesActiveWorkspace = useCallback((domain: {
     providerAccountId?: number | null;

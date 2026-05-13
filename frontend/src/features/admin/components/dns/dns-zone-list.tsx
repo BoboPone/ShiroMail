@@ -73,9 +73,11 @@ export function DnsZoneList({
           {paginatedItems.map((zone) => {
             const zoneKey = `${providerZonePanel.providerId}:${zone.id}`;
             const cooldownUntil = zoneFailureCooldowns[zoneKey] ?? 0;
+            /* eslint-disable react-hooks/purity */
             const cooldownSeconds = cooldownUntil > Date.now()
               ? Math.max(1, Math.ceil((cooldownUntil - Date.now()) / 1000))
               : 0;
+            /* eslint-enable react-hooks/purity */
             return (
               <WorkspaceListRow
                 className={cn(

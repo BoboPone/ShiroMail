@@ -82,7 +82,7 @@ export function AdminJobsPage() {
     },
   });
 
-  const jobs = jobsQuery.data ?? [];
+  const jobs = useMemo(() => jobsQuery.data ?? [], [jobsQuery.data]);
   const smtpMetrics = smtpMetricsQuery.data;
   const spool = spoolQuery.data;
   const totalSpoolPages = Math.max(1, Math.ceil((spool?.total ?? 0) / (spool?.pageSize ?? ADMIN_INBOUND_SPOOL_PAGE_SIZE)));

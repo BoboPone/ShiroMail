@@ -59,7 +59,7 @@ export function buildMailHtmlPreview(content: string, cidSources: Record<string,
   let html = content.trim();
 
   html = html.replace(/<script\b[\s\S]*?<\/script>/gi, "");
-  html = html.replace(/<iframe\b[\s\S]*?<\/iframe>/gi, (_match) => {
+  html = html.replace(/<iframe\b[\s\S]*?<\/iframe>/gi, () => {
     notices.push("已隐藏邮件中的嵌入框架内容。");
     return buildNoticeBlock("已隐藏嵌入内容，请下载原文查看。");
   });

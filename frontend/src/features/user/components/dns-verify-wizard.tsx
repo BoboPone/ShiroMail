@@ -125,7 +125,7 @@ export function DnsVerifyWizard({ open, onOpenChange, domain, requiredRecords }:
                 {i + 1}
               </div>
               <span className={`text-xs ${i <= step ? "text-foreground" : "text-muted-foreground"}`}>
-                {t(`dns.verifyWizard.step${s.charAt(0).toUpperCase() + s.slice(1)}` as any)}
+                {t(`dns.verifyWizard.step${s.charAt(0).toUpperCase() + s.slice(1)}` as never)}
               </span>
               {i < WIZARD_STEPS.length - 1 && <div className="mx-1 h-px w-4 bg-border" />}
             </div>

@@ -154,7 +154,7 @@ function flattenOptions(children: React.ReactNode): BasicSelectOption[] {
     if (!React.isValidElement(child)) {
       return;
     }
-    const element = child as React.ReactElement<any>;
+    const element = child as React.ReactElement<{ value?: string; disabled?: boolean; children?: React.ReactNode }>;
 
     if (element.type === React.Fragment) {
       options.push(...flattenOptions(element.props.children));

@@ -43,6 +43,7 @@ export function UserDashboardPage() {
   const sessionUsername = useAuthStore((state) => state.user?.username);
   const dashboardQuery = useQuery({ queryKey: ["user-dashboard"], queryFn: fetchDashboard });
   const overviewQuery = useQuery({ queryKey: ["portal-overview"], queryFn: fetchPortalOverview });
+  const [trendDays, setTrendDays] = useState(7);
 
   if (dashboardQuery.isLoading && overviewQuery.isLoading) {
     return (
@@ -54,7 +55,6 @@ export function UserDashboardPage() {
 
   const dashboard = dashboardQuery.data;
   const overview = overviewQuery.data;
-  const [trendDays, setTrendDays] = useState(7);
   const displayName = sessionUsername || overview?.username || "Shiro 用户";
   const greeting = getGreeting(t);
   const domains = dashboard?.availableDomains ?? [];

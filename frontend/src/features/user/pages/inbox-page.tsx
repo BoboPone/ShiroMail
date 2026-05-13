@@ -344,6 +344,7 @@ function VirtualizedMessageList({
   effectiveSearch: string;
   onSelect: (id: number) => void;
 }) {
+  "use no memo";
   const { t } = useTranslation();
   const parentRef = useRef<HTMLDivElement>(null);
 

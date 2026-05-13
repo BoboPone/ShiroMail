@@ -327,6 +327,7 @@ function UptimeBar({
   // Calculate expected seconds since startedAt
   let percentage = 100;
   if (startedAt) {
+    // eslint-disable-next-line react-hooks/purity
     const expectedSeconds = (Date.now() - new Date(startedAt).getTime()) / 1000;
     if (expectedSeconds > 0) {
       percentage = Math.min(100, (uptimeSeconds / expectedSeconds) * 100);

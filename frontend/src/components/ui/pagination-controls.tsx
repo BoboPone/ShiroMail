@@ -38,12 +38,6 @@ export function PaginationControls({
   const { t } = useTranslation();
   const [jumpValue, setJumpValue] = useState("");
 
-  if (total <= pageSize && !showPageSizeSelector) {
-    return null;
-  }
-
-  const pageNumbers = buildPageNumbers(page, totalPages);
-
   const handleJump = useCallback(() => {
     const target = parseInt(jumpValue, 10);
     if (Number.isFinite(target) && target >= 1 && target <= totalPages) {
@@ -51,6 +45,12 @@ export function PaginationControls({
       setJumpValue("");
     }
   }, [jumpValue, totalPages, onPageChange]);
+
+  if (total <= pageSize && !showPageSizeSelector) {
+    return null;
+  }
+
+  const pageNumbers = buildPageNumbers(page, totalPages);
 
   const label = itemLabel ?? t("pagination.items");
 

@@ -99,7 +99,7 @@ export function AdminUsersPage() {
   });
 
   const usersQuery = useQuery({ queryKey: ["admin-users"], queryFn: fetchAdminUsers });
-  const users = usersQuery.data ?? [];
+  const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
   const adminCount = users.filter((user) => user.roles.includes("admin")).length;
   const mailboxCount = users.reduce((sum, user) => sum + user.mailboxes, 0);
   const paginatedUsers = useMemo(
@@ -372,11 +372,12 @@ export function AdminUsersPage() {
                 disabled={!selectedUser || formState.roles.length === 0 || updateUserMutation.isPending}
                 onClick={() => {
                   setFeedback(null);
-                  selectedUser &&
+                  if (selectedUser) {
                     updateUserMutation.mutate({
                       userId: selectedUser.id,
                       input: formState,
                     });
+                  }
                 }}
               >
                 {updateUserMutation.isPending ? "保存中..." : "保存修改"}

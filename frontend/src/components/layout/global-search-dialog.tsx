@@ -33,6 +33,7 @@ export function GlobalSearchDialog({ open, onOpenChange }: { open: boolean; onOp
     }
   }, [open]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleSelect = useCallback((_mailboxId: number) => {
     onOpenChange(false);
     navigate(`/dashboard/mailboxes`);
