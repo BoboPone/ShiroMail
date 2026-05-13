@@ -59,11 +59,7 @@ jobs:
           done
 
           for i in {1..30}; do
-            if python - <<'PY'
-import socket
-socket.create_connection(("127.0.0.1", 6379), timeout=2).close()
-PY
-            then
+            if redis-cli -h 127.0.0.1 -p 6379 ping | grep -q PONG; then
               break
             fi
             if [ "$i" -eq 30 ]; then
