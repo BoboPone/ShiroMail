@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Check, ChevronDown, ChevronRight, CircleX, Globe, LoaderCircle, RefreshCcw, Trash2 } from "lucide-react";
 import i18n from "@/lib/i18n";
+import { useURLPagination } from "@/hooks/use-url-pagination";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,7 +61,7 @@ function getUserDomainsCacheKey(userId: string | undefined, suffix: string) {
 }
 
 const PERSISTED_QUERY_STALE_TIME = 60_000;
-const USER_DOMAINS_PAGE_SIZE = 6;
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 type DomainStatusGroup = "unbound" | "pending" | "verified";
 
@@ -345,7 +346,7 @@ export function UserDomainsPage() {
     domain: string;
     label: string;
   } | null>(null);
-  const [rootDomainsPage, setRootDomainsPage] = useState(1);
+  const { page: rootDomainsPage, pageSize, setPage: setRootDomainsPage, setPageSize } = useURLPagination({ defaultPage: 1, defaultPageSize: 20 });
 
   const domainsQuery = useQuery({
     queryKey: ["user-domains"],
@@ -407,8 +408,8 @@ export function UserDomainsPage() {
     return groups;
   }, [rootDomains]);
   const paginatedRootDomains = useMemo(
-    () => paginateItems(rootDomains, rootDomainsPage, USER_DOMAINS_PAGE_SIZE),
-    [rootDomains, rootDomainsPage],
+    () => paginateItems(rootDomains, rootDomainsPage, pageSize),
+    [rootDomains, rootDomainsPage, pageSize],
   );
   const groupedPaginatedRootDomains = useMemo(() => {
     const groups: Record<DomainStatusGroup, typeof rootDomains> = {
@@ -1352,8 +1353,11 @@ export function UserDomainsPage() {
           <PaginationControls
             itemLabel="根域名"
             onPageChange={setRootDomainsPage}
+            onPageSizeChange={setPageSize}
             page={paginatedRootDomains.page}
-            pageSize={USER_DOMAINS_PAGE_SIZE}
+            pageSize={pageSize}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            showPageSizeSelector
             total={paginatedRootDomains.total}
             totalPages={paginatedRootDomains.totalPages}
           />

@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useURLPagination } from "@/hooks/use-url-pagination";
 import {
   createCustomMailbox,
   extendMailbox,
@@ -58,7 +59,7 @@ const mailboxAutoRefreshOptions = [
   { label: "30 秒", value: "30", keywords: ["30s", "30"] },
 ];
 const allowedMailboxTTLValues = ttlOptions.map((item) => Number(item.value));
-const USER_MAILBOXES_PAGE_SIZE = 8;
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(i18n.language, {
@@ -95,7 +96,7 @@ export function UserMailboxPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedMailboxId, setSelectedMailboxId] = useState<number | null>(null);
   const [selectedMessageId, setSelectedMessageId] = useState<number | null>(null);
-  const [mailboxesPage, setMailboxesPage] = useState(1);
+  const { page: mailboxesPage, pageSize: mailboxesPageSize, setPage: setMailboxesPage, setPageSize: setMailboxesPageSize, resetPage: resetMailboxesPage } = useURLPagination({ defaultPage: 1, defaultPageSize: 20 });
   const [domainId, setDomainId] = useState("");
   const [ttlHours, setTtlHours] = useState<number>(24);
   const [permanent, setPermanent] = useState(false);
@@ -144,8 +145,8 @@ export function UserMailboxPage() {
     return String(domains[0].id);
   }, [domainId, domains, searchParams]);
   const paginatedMailboxes = useMemo(
-    () => paginateItems(mailboxes, mailboxesPage, USER_MAILBOXES_PAGE_SIZE),
-    [mailboxes, mailboxesPage],
+    () => paginateItems(mailboxes, mailboxesPage, mailboxesPageSize),
+    [mailboxes, mailboxesPage, mailboxesPageSize],
   );
   const effectiveSelectedMailboxId = useMemo(() => {
     if (!paginatedMailboxes.items.length) {
@@ -378,7 +379,7 @@ export function UserMailboxPage() {
       setFeedback(`已创建邮箱 ${created.address}`);
       setLocalPart("");
       await invalidateMailboxData();
-      setMailboxesPage(1);
+      resetMailboxesPage();
       setSelectedMailboxId(created.id);
     },
     onError: () => {
@@ -527,7 +528,9 @@ export function UserMailboxPage() {
               setMessagesSearchQuery("");
             }}
             onPageChange={setMailboxesPage}
-            pageSize={USER_MAILBOXES_PAGE_SIZE}
+            onPageSizeChange={setMailboxesPageSize}
+            pageSize={mailboxesPageSize}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
             formatDate={formatDate}
             formatRemainingHours={formatRemainingHours}
           />

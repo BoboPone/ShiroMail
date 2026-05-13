@@ -39,6 +39,7 @@ import {
 } from "@/features/mail-preview";
 import { decodeMimeHeaderValue } from "@/lib/mail-header";
 import { paginateItems } from "@/lib/pagination";
+import { useURLPagination } from "@/hooks/use-url-pagination";
 import {
   Clock3,
   Download,
@@ -83,7 +84,8 @@ const mailboxAutoRefreshOptions = [
   { label: "15 秒", value: "15", keywords: ["15s", "15"] },
   { label: "30 秒", value: "30", keywords: ["30s", "30"] },
 ];
-const ADMIN_MAILBOXES_PAGE_SIZE = 8;
+const ADMIN_MAILBOXES_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(i18n.language, {
@@ -121,7 +123,10 @@ export function AdminMailboxesPage() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const [mailboxesPage, setMailboxesPage] = useState(1);
+  const { page: mailboxesPage, pageSize: mailboxesPageSize, setPage: setMailboxesPage, setPageSize: setMailboxesPageSize, resetPage: resetMailboxesPage } = useURLPagination({
+    defaultPage: 1,
+    defaultPageSize: ADMIN_MAILBOXES_PAGE_SIZE,
+  });
   const [messageViewMode, setMessageViewMode] = useState<MessageViewMode>("text");
   const [cidImageSources, setCIDImageSources] = useState<Record<string, string>>({});
   const [headersExpanded, setHeadersExpanded] = useState(false);
@@ -202,8 +207,8 @@ export function AdminMailboxesPage() {
     });
   }, [mailboxes, searchValue, selectedUserId]);
   const paginatedFilteredMailboxes = useMemo(
-    () => paginateItems(filteredMailboxes, mailboxesPage, ADMIN_MAILBOXES_PAGE_SIZE),
-    [filteredMailboxes, mailboxesPage],
+    () => paginateItems(filteredMailboxes, mailboxesPage, mailboxesPageSize),
+    [filteredMailboxes, mailboxesPage, mailboxesPageSize],
   );
 
   useEffect(() => {
@@ -444,7 +449,7 @@ export function AdminMailboxesPage() {
       setFeedback(`已创建邮箱 ${created.address}`);
       setLocalPart("");
       await invalidateMailboxData();
-      setMailboxesPage(1);
+      resetMailboxesPage();
       setSelectedMailboxId(created.id);
       setSelectedUserId(String(created.userId));
     },
@@ -702,8 +707,11 @@ export function AdminMailboxesPage() {
                 <PaginationControls
                   itemLabel="邮箱"
                   onPageChange={setMailboxesPage}
+                  onPageSizeChange={setMailboxesPageSize}
                   page={paginatedFilteredMailboxes.page}
-                  pageSize={ADMIN_MAILBOXES_PAGE_SIZE}
+                  pageSize={mailboxesPageSize}
+                  pageSizeOptions={PAGE_SIZE_OPTIONS}
+                  showPageSizeSelector
                   total={paginatedFilteredMailboxes.total}
                   totalPages={paginatedFilteredMailboxes.totalPages}
                 />

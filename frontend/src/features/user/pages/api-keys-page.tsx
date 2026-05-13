@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useURLPagination } from "@/hooks/use-url-pagination";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -86,7 +87,7 @@ const DEFAULT_RESOURCE_POLICY = {
   allowProtectedRecordWrite: false,
 };
 
-const USER_API_KEYS_PAGE_SIZE = 8;
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 const EXPIRATION_OPTIONS = [
   { value: "", label: "永不过期" },
@@ -114,7 +115,7 @@ export function UserApiKeysPage() {
   const [pendingRevokeItem, setPendingRevokeItem] = useState<ApiKeyItem | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "done" | "failed">("idle");
   const [createError, setCreateError] = useState<string | null>(null);
-  const [apiKeysPage, setApiKeysPage] = useState(1);
+  const { page: apiKeysPage, pageSize, setPage: setApiKeysPage, setPageSize } = useURLPagination({ defaultPage: 1, defaultPageSize: 20 });
   const [name, setName] = useState("");
   const [selectedScopes, setSelectedScopes] = useState<string[]>(DEFAULT_SCOPES);
   const [expirationChoice, setExpirationChoice] = useState("");
@@ -198,8 +199,8 @@ export function UserApiKeysPage() {
   const canAddBinding = bindingDraft.domainId !== "";
   const filteredApiKeys = (apiKeysQuery.data ?? []).filter((item) => item.status === "active");
   const paginatedApiKeys = useMemo(
-    () => paginateItems(filteredApiKeys, apiKeysPage, USER_API_KEYS_PAGE_SIZE),
-    [apiKeysPage, filteredApiKeys],
+    () => paginateItems(filteredApiKeys, apiKeysPage, pageSize),
+    [apiKeysPage, filteredApiKeys, pageSize],
   );
 
   const handleCopySecret = async () => {
@@ -719,8 +720,11 @@ export function UserApiKeysPage() {
             <PaginationControls
               itemLabel="API Key"
               onPageChange={setApiKeysPage}
+              onPageSizeChange={setPageSize}
               page={paginatedApiKeys.page}
-              pageSize={USER_API_KEYS_PAGE_SIZE}
+              pageSize={pageSize}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              showPageSizeSelector
               total={paginatedApiKeys.total}
               totalPages={paginatedApiKeys.totalPages}
             />

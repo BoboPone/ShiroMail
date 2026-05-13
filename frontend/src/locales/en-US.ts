@@ -941,6 +941,17 @@ const translation = {
     loadingDetail: "Loading message details...",
     detailUnavailable: "Unable to load this message. Please try again.",
   },
+  tags: {
+    title: "Tag Management",
+    create: "New Tag",
+    edit: "Edit Tag",
+    delete: "Delete Tag",
+    name: "Tag Name",
+    color: "Color",
+    assignTag: "Assign Tag",
+    noTags: "No tags yet",
+    confirmDelete: "Delete this tag? Associated mailboxes will be unbound automatically.",
+  },
 } as const;
 
 export default { translation } as const;

@@ -17,6 +17,7 @@ import {
 } from "@/components/layout/workspace-ui";
 import { getAPIErrorMessage } from "@/lib/http";
 import { paginateItems } from "@/lib/pagination";
+import { useURLPagination } from "@/hooks/use-url-pagination";
 import {
   createAdminMailExtractorRule,
   deleteAdminMailExtractorRule,
@@ -39,12 +40,16 @@ const targetFieldOptions = [
   { value: "raw_text", label: "Raw" },
 ] as const;
 
-const ADMIN_EXTRACTOR_TEMPLATES_PAGE_SIZE = 8;
+const ADMIN_EXTRACTOR_TEMPLATES_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 export function AdminExtractorTemplatesPage() {
   const queryClient = useQueryClient();
   const [selectedRuleId, setSelectedRuleId] = useState<number | "new">("new");
-  const [rulesPage, setRulesPage] = useState(1);
+  const { page: rulesPage, pageSize: rulesPageSize, setPage: setRulesPage, setPageSize: setRulesPageSize } = useURLPagination({
+    defaultPage: 1,
+    defaultPageSize: ADMIN_EXTRACTOR_TEMPLATES_PAGE_SIZE,
+  });
   const [draft, setDraft] = useState<RuleDraft>(emptyRuleDraft);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [sampleMailboxId, setSampleMailboxId] = useState("");
@@ -116,8 +121,8 @@ export function AdminExtractorTemplatesPage() {
   const rules = (rulesQuery.data ?? []).map(normalizeMailExtractorRule);
   const messages = messagesQuery.data ?? [];
   const paginatedRules = useMemo(
-    () => paginateItems(rules, rulesPage, ADMIN_EXTRACTOR_TEMPLATES_PAGE_SIZE),
-    [rules, rulesPage],
+    () => paginateItems(rules, rulesPage, rulesPageSize),
+    [rules, rulesPage, rulesPageSize],
   );
 
   function selectRule(rule: MailExtractorRule) {
@@ -195,8 +200,11 @@ export function AdminExtractorTemplatesPage() {
                 <PaginationControls
                   itemLabel="模板"
                   onPageChange={setRulesPage}
+                  onPageSizeChange={setRulesPageSize}
                   page={paginatedRules.page}
-                  pageSize={ADMIN_EXTRACTOR_TEMPLATES_PAGE_SIZE}
+                  pageSize={rulesPageSize}
+                  pageSizeOptions={PAGE_SIZE_OPTIONS}
+                  showPageSizeSelector
                   total={paginatedRules.total}
                   totalPages={paginatedRules.totalPages}
                 />

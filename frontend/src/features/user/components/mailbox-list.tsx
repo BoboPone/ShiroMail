@@ -17,7 +17,9 @@ type Props = {
   effectiveSelectedMailboxId: number | null;
   onSelectMailbox: (mailboxId: number) => void;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
   pageSize: number;
+  pageSizeOptions: number[];
   formatDate: (value: string) => string;
   formatRemainingHours: (value: string) => string;
 };
@@ -29,7 +31,9 @@ export function MailboxList({
   effectiveSelectedMailboxId,
   onSelectMailbox,
   onPageChange,
+  onPageSizeChange,
   pageSize,
+  pageSizeOptions,
   formatDate,
   formatRemainingHours,
 }: Props) {
@@ -57,8 +61,11 @@ export function MailboxList({
           <PaginationControls
             itemLabel="邮箱"
             onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
             page={paginatedMailboxes.page}
             pageSize={pageSize}
+            pageSizeOptions={pageSizeOptions}
+            showPageSizeSelector
             total={paginatedMailboxes.total}
             totalPages={paginatedMailboxes.totalPages}
           />

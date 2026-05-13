@@ -918,6 +918,17 @@ const translation = {
     loadingDetail: "正在加载邮件详情...",
     detailUnavailable: "无法加载此邮件，请重试。",
   },
+  tags: {
+    title: "标签管理",
+    create: "新建标签",
+    edit: "编辑标签",
+    delete: "删除标签",
+    name: "标签名称",
+    color: "颜色",
+    assignTag: "分配标签",
+    noTags: "暂无标签",
+    confirmDelete: "确定删除此标签？关联的邮箱将自动解绑。",
+  },
 } as const;
 
 export default { translation } as const;

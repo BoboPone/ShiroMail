@@ -19,6 +19,7 @@ import { PaginationControls } from "@/components/ui/pagination-controls";
 import { getAPIErrorMessage } from "@/lib/http";
 import { paginateItems } from "@/lib/pagination";
 import { validateRequiredText, validateSelection } from "@/lib/validation";
+import { useURLPagination } from "@/hooks/use-url-pagination";
 import {
   WorkspaceBadge,
   WorkspaceEmpty,
@@ -88,7 +89,8 @@ const DEFAULT_RESOURCE_POLICY = {
   allowProtectedRecordWrite: false,
 };
 
-const ADMIN_API_KEYS_PAGE_SIZE = 8;
+const ADMIN_API_KEYS_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 type BindingDraft = {
   domainId: string;
@@ -108,7 +110,10 @@ export function AdminApiKeysPage() {
   const [pendingRevokeItem, setPendingRevokeItem] = useState<ApiKeyItem | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "done" | "failed">("idle");
   const [createError, setCreateError] = useState<string | null>(null);
-  const [apiKeysPage, setApiKeysPage] = useState(1);
+  const { page: apiKeysPage, pageSize: apiKeysPageSize, setPage: setApiKeysPage, setPageSize: setApiKeysPageSize } = useURLPagination({
+    defaultPage: 1,
+    defaultPageSize: ADMIN_API_KEYS_PAGE_SIZE,
+  });
   const [name, setName] = useState("");
   const [selectedScopes, setSelectedScopes] = useState<string[]>(DEFAULT_SCOPES);
   const [resourcePolicy, setResourcePolicy] = useState(DEFAULT_RESOURCE_POLICY);
@@ -188,8 +193,8 @@ export function AdminApiKeysPage() {
   const canSubmit = name.trim() !== "";
   const activeApiKeys = apiKeysQuery.data ?? [];
   const paginatedApiKeys = useMemo(
-    () => paginateItems(activeApiKeys, apiKeysPage, ADMIN_API_KEYS_PAGE_SIZE),
-    [activeApiKeys, apiKeysPage],
+    () => paginateItems(activeApiKeys, apiKeysPage, apiKeysPageSize),
+    [activeApiKeys, apiKeysPage, apiKeysPageSize],
   );
 
   const handleCopySecret = async () => {
@@ -669,8 +674,11 @@ export function AdminApiKeysPage() {
             <PaginationControls
               itemLabel="API Key"
               onPageChange={setApiKeysPage}
+              onPageSizeChange={setApiKeysPageSize}
               page={paginatedApiKeys.page}
-              pageSize={ADMIN_API_KEYS_PAGE_SIZE}
+              pageSize={apiKeysPageSize}
+              pageSizeOptions={PAGE_SIZE_OPTIONS}
+              showPageSizeSelector
               total={paginatedApiKeys.total}
               totalPages={paginatedApiKeys.totalPages}
             />

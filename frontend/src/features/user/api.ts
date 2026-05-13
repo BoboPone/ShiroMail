@@ -925,6 +925,38 @@ function normalizeMailboxMessageSummary(message: MailboxMessageSummaryWire): Mai
   };
 }
 
+// -- Mailbox Tags --
+
+export type MailboxTag = { id: number; userId: number; name: string; color: string; createdAt: string };
+export type MailboxTagBinding = { mailboxId: number; tagId: number };
+
+export async function fetchMailboxTags() {
+  const { data } = await http.get<{ tags: MailboxTag[]; bindings: MailboxTagBinding[] }>("/mailbox-tags");
+  return data;
+}
+
+export async function createMailboxTag(input: { name: string; color: string }) {
+  const { data } = await http.post<MailboxTag>("/mailbox-tags", input);
+  return data;
+}
+
+export async function updateMailboxTag(id: number, input: { name: string; color: string }) {
+  const { data } = await http.put<MailboxTag>(`/mailbox-tags/${id}`, input);
+  return data;
+}
+
+export async function deleteMailboxTag(id: number) {
+  await http.delete(`/mailbox-tags/${id}`);
+}
+
+export async function bindMailboxTag(mailboxId: number, tagId: number) {
+  await http.post(`/mailboxes/${mailboxId}/tags/${tagId}`);
+}
+
+export async function unbindMailboxTag(mailboxId: number, tagId: number) {
+  await http.delete(`/mailboxes/${mailboxId}/tags/${tagId}`);
+}
+
 function normalizeApiKeyItem(item: ApiKeyItem): ApiKeyItem {
   return {
     ...item,

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Check, ChevronDown, ChevronUp, CircleX, Globe, LoaderCircle, Plus, RefreshCcw } from "lucide-react";
+import { useURLPagination } from "@/hooks/use-url-pagination";
 import i18n from "@/lib/i18n";
 import {
   AlertDialog,
@@ -29,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { NoticeBanner } from "@/components/ui/notice-banner";
 import { Label } from "@/components/ui/label";
 import { OptionCombobox } from "@/components/ui/option-combobox";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { Textarea } from "@/components/ui/textarea";
 import {
   WorkspaceBadge,
@@ -38,6 +40,7 @@ import {
   WorkspacePanel,
 } from "@/components/layout/workspace-ui";
 import { getAPIErrorMessage } from "@/lib/http";
+import { paginateItems } from "@/lib/pagination";
 import { readPersistedState, writePersistedState } from "@/lib/persisted-state";
 import { cn } from "@/lib/utils";
 import {
@@ -60,7 +63,8 @@ type DomainGuideRecord = {
   verified: boolean;
 };
 
-const ADMIN_DOMAINS_PAGE_SIZE = 8;
+const ADMIN_DOMAINS_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50];
 const ADMIN_DOMAINS_CACHE_KEY = "shiro-email.admin-domains.cache";
 const ADMIN_DOMAINS_UI_CACHE_KEY = "shiro-email.admin-domains.ui";
 const PERSISTED_QUERY_STALE_TIME = 60_000;
@@ -144,54 +148,6 @@ function DomainStatusIcon({
     return <Check className={cn("size-4", className)} />;
   }
   return <CircleX className={cn("size-4", className)} />;
-}
-
-function paginateItems<T>(items: T[], page: number, pageSize: number) {
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
-  const safePage = Math.min(Math.max(page, 1), totalPages);
-  const start = (safePage - 1) * pageSize;
-  return {
-    page: safePage,
-    totalPages,
-    items: items.slice(start, start + pageSize),
-    total: items.length,
-  };
-}
-
-function PaginationControls({
-  page,
-  totalPages,
-  total,
-  pageSize,
-  itemLabel,
-  onPageChange,
-}: {
-  page: number;
-  totalPages: number;
-  total: number;
-  pageSize: number;
-  itemLabel: string;
-  onPageChange: (page: number) => void;
-}) {
-  if (total <= pageSize) {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/60 px-3 py-2">
-      <p className="text-xs text-muted-foreground">
-        第 {page} / {totalPages} 页 · 共 {total} 条{itemLabel}
-      </p>
-      <div className="flex items-center gap-2">
-        <Button disabled={page <= 1} size="sm" type="button" variant="outline" onClick={() => onPageChange(page - 1)}>
-          上一页
-        </Button>
-        <Button disabled={page >= totalPages} size="sm" type="button" variant="outline" onClick={() => onPageChange(page + 1)}>
-          下一页
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 function buildRecommendedDomainRecords(domain: DomainOption): DomainGuideRecord[] {
@@ -421,7 +377,10 @@ export function AdminDomainsPage() {
   const [verifyingDomainId, setVerifyingDomainId] = useState<number | null>(null);
   const [creatingDomainWithVerification, setCreatingDomainWithVerification] = useState(false);
   const [generatingDomainsWithVerification, setGeneratingDomainsWithVerification] = useState(false);
-  const [domainsPage, setDomainsPage] = useState(1);
+  const { page: domainsPage, pageSize: domainsPageSize, setPage: setDomainsPage, setPageSize: setDomainsPageSize } = useURLPagination({
+    defaultPage: 1,
+    defaultPageSize: ADMIN_DOMAINS_PAGE_SIZE,
+  });
   const isEditingDomain = editingDomainId !== null;
 
   const domainsQuery = useQuery({
@@ -463,8 +422,8 @@ export function AdminDomainsPage() {
   );
 
   const paginatedDomains = useMemo(
-    () => paginateItems(effectiveDomains, domainsPage, ADMIN_DOMAINS_PAGE_SIZE),
-    [domainsPage, effectiveDomains],
+    () => paginateItems(effectiveDomains, domainsPage, domainsPageSize),
+    [domainsPage, domainsPageSize, effectiveDomains],
   );
 
   async function applyAdminVerificationResult(result: DomainVerificationResult, announce = true) {
@@ -1433,11 +1392,14 @@ export function AdminDomainsPage() {
               })}
               <PaginationControls
                 itemLabel="域名"
+                onPageChange={setDomainsPage}
+                onPageSizeChange={setDomainsPageSize}
                 page={paginatedDomains.page}
-                pageSize={ADMIN_DOMAINS_PAGE_SIZE}
+                pageSize={domainsPageSize}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                showPageSizeSelector
                 total={paginatedDomains.total}
                 totalPages={paginatedDomains.totalPages}
-                onPageChange={setDomainsPage}
               />
             </div>
           ) : (
