@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="./README.md">English</a>
+  <a href="./README.md">English</a> · <a href="./docs/deployment-guide.md">部署指南</a>
 </p>
 
 ## 项目简介

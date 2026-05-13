@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="./README.zh-CN.md">简体中文</a>
+  <a href="./README.zh-CN.md">简体中文</a> · <a href="./docs/deployment-guide.md">部署指南</a>
 </p>
 
 ## Overview
