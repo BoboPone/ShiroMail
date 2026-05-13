@@ -1,0 +1,1 @@
+ALTER TABLE user_api_keys ADD COLUMN expires_at DATETIME NULL DEFAULT NULL;

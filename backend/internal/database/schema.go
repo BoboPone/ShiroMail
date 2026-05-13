@@ -63,17 +63,35 @@ func splitSQLStatements(body string) []string {
 }
 
 func applySchemaStatement(ctx context.Context, db *gorm.DB, statement string) error {
-	if indexName, tableName, ok := parseCreateIndex(statement); ok {
-		return ensureIndex(ctx, db, tableName, indexName, statement)
-	}
-	if tableName, columnName, ok := parseAlterAddColumn(statement); ok {
-		return ensureColumn(ctx, db, tableName, columnName, statement)
+	cleaned := stripSQLComments(statement)
+	if cleaned == "" {
+		return nil
 	}
 
-	if err := db.WithContext(ctx).Exec(statement).Error; err != nil {
+	if indexName, tableName, ok := parseCreateIndex(cleaned); ok {
+		return ensureIndex(ctx, db, tableName, indexName, cleaned)
+	}
+	if tableName, columnName, ok := parseAlterAddColumn(cleaned); ok {
+		return ensureColumn(ctx, db, tableName, columnName, cleaned)
+	}
+
+	if err := db.WithContext(ctx).Exec(cleaned).Error; err != nil {
 		return fmt.Errorf("apply schema statement: %w", err)
 	}
 	return nil
+}
+
+func stripSQLComments(statement string) string {
+	lines := strings.Split(statement, "\n")
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "--") {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+	return strings.TrimSpace(strings.Join(filtered, "\n"))
 }
 
 func parseCreateIndex(statement string) (string, string, bool) {
