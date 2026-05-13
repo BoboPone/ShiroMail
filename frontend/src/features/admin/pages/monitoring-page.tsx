@@ -2,6 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   Activity,
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
   Database,
   HardDrive,
   Server,
@@ -13,8 +16,10 @@ import {
 } from "@/components/layout/workspace-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Sparkline } from "@/components/ui/sparkline";
 import { useAuthStore } from "@/lib/auth-store";
 import { fetchAdminSystemMonitoring, getExportStatsURL } from "../api";
+import { fetchDashboardTrend } from "../../user/api";
 
 function formatUptime(seconds: number): string {
   if (seconds <= 0) return "0s";
@@ -67,7 +72,14 @@ export function AdminMonitoringPage() {
     refetchInterval: 15_000,
   });
 
+  const trendQuery = useQuery({
+    queryKey: ["admin-monitoring-trend"],
+    queryFn: () => fetchDashboardTrend(7),
+    staleTime: 60_000,
+  });
+
   const data = monitoringQuery.data;
+  const trendData = trendQuery.data ?? [];
 
   const smtpHealth: HealthStatus =
     data && data.smtp.queueDepth > 100
@@ -235,7 +247,116 @@ export function AdminMonitoringPage() {
             </div>
           </div>
         </div>
+
+        {/* Message Throughput */}
+        <div className="mt-6 space-y-4 rounded-xl border border-border/60 bg-card p-5">
+          <div className="flex items-center gap-2">
+            <Activity className="size-4 text-muted-foreground" />
+            <span className="text-sm font-medium">{t("monitoring.throughput")}</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <Sparkline
+              className="text-primary"
+              color="hsl(var(--primary))"
+              data={trendData.map((d) => d.count)}
+              height={36}
+              width={140}
+            />
+            <div className="flex flex-col">
+              <span className="text-2xl font-semibold tabular-nums">
+                {trendData.length > 0 ? trendData[trendData.length - 1].count : 0}
+              </span>
+              <span className="text-xs text-muted-foreground">{t("monitoring.throughputToday")}</span>
+            </div>
+            <TrendIndicator data={trendData.map((d) => d.count)} />
+          </div>
+        </div>
+
+        {/* System Uptime */}
+        <UptimeBar
+          startedAt={data?.general.startedAt}
+          uptimeSeconds={data?.general.uptimeSeconds ?? 0}
+        />
       </WorkspacePanel>
     </WorkspacePage>
+  );
+}
+
+function TrendIndicator({ data }: { data: number[] }) {
+  const { t } = useTranslation();
+
+  if (data.length < 2) return null;
+
+  const today = data[data.length - 1];
+  const yesterday = data[data.length - 2];
+  const diff = today - yesterday;
+
+  if (diff > 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+        <ArrowUp className="size-3" />
+        {t("monitoring.trendUp")}
+      </span>
+    );
+  }
+  if (diff < 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-red-500">
+        <ArrowDown className="size-3" />
+        {t("monitoring.trendDown")}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+      <ArrowRight className="size-3" />
+      {t("monitoring.trendStable")}
+    </span>
+  );
+}
+
+function UptimeBar({
+  startedAt,
+  uptimeSeconds,
+}: {
+  startedAt?: string;
+  uptimeSeconds: number;
+}) {
+  const { t } = useTranslation();
+
+  // Calculate expected seconds since startedAt
+  let percentage = 100;
+  if (startedAt) {
+    const expectedSeconds = (Date.now() - new Date(startedAt).getTime()) / 1000;
+    if (expectedSeconds > 0) {
+      percentage = Math.min(100, (uptimeSeconds / expectedSeconds) * 100);
+    }
+  }
+
+  const barColor =
+    percentage >= 99.9
+      ? "bg-emerald-500"
+      : percentage >= 99
+        ? "bg-amber-500"
+        : "bg-red-500";
+
+  return (
+    <div className="mt-6 space-y-3 rounded-xl border border-border/60 bg-card p-5">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{t("monitoring.general.uptime")}</span>
+        <span className="text-xs text-muted-foreground">
+          {t("monitoring.uptimeTarget")}
+        </span>
+      </div>
+      <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className={`h-full rounded-full transition-all ${barColor}`}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <span className="text-xs tabular-nums text-muted-foreground">
+        {percentage.toFixed(2)}%
+      </span>
+    </div>
   );
 }

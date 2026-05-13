@@ -890,6 +890,12 @@ const translation = {
       started: "Started At",
       startedHint: "Application start time",
     },
+    throughput: "Message Throughput",
+    throughputToday: "Today",
+    trendUp: "Up from yesterday",
+    trendDown: "Down from yesterday",
+    trendStable: "Same as yesterday",
+    uptimeTarget: "Availability target 99.9%",
   },
   userDetail: {
     title: "User Detail",

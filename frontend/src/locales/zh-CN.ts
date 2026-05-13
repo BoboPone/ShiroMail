@@ -57,6 +57,7 @@ const translation = {
       dns: "DNS 配置",
       extractors: "提取规则",
       webhooks: "Webhook",
+      apiPlayground: "API 调试台",
       docs: "文档中心",
       billing: "套餐订阅",
       balance: "我的余额",
@@ -867,6 +868,12 @@ const translation = {
       started: "启动时间",
       startedHint: "应用启动时间",
     },
+    throughput: "消息吞吐量",
+    throughputToday: "今日消息",
+    trendUp: "较昨日上升",
+    trendDown: "较昨日下降",
+    trendStable: "与昨日持平",
+    uptimeTarget: "可用性目标 99.9%",
   },
   userDetail: {
     title: "用户详情",
@@ -935,6 +942,17 @@ const translation = {
     confirmDelete: "确定删除此标签？关联的邮箱将自动解绑。",
     filterAll: "全部",
     manageTags: "管理标签",
+  },
+  apiPlayground: {
+    title: "API 调试台",
+    description: "在线测试 API 接口，查看请求和响应详情",
+    send: "发送请求",
+    preset: "快捷接口",
+    response: "响应",
+    requestBody: "请求体",
+    headers: "请求头",
+    noResponse: "发送请求后在此查看响应",
+    duration: "耗时",
   },
 } as const;
 
