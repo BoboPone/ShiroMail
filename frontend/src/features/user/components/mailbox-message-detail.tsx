@@ -19,6 +19,7 @@ import {
   Mail,
   Search,
   ShieldCheck,
+  Sparkles,
   TimerReset,
   Trash2,
 } from "lucide-react";
@@ -68,8 +69,10 @@ type Props = {
   messagesNoResultsTitle: string;
   messagesNoResultsHint: string;
   onExtend: () => void;
+  onMakePermanent: () => void;
   onRelease: () => void;
   isExtendPending: boolean;
+  isMakePermanentPending: boolean;
   isReleasePending: boolean;
   onFeedback: (msg: string | null) => void;
   formatDate: (value: string) => string;
@@ -109,8 +112,10 @@ export function MailboxMessageDetail({
   messagesNoResultsTitle,
   messagesNoResultsHint,
   onExtend,
+  onMakePermanent,
   onRelease,
   isExtendPending,
+  isMakePermanentPending,
   isReleasePending,
   onFeedback,
   formatDate,
@@ -163,7 +168,7 @@ export function MailboxMessageDetail({
   return (
     <WorkspacePanel
       className="xl:sticky xl:top-20"
-      description={selectedMailbox ? (selectedMailbox.permanent ? "永久邮箱" : `到期时间 ${formatDate(selectedMailbox.expiresAt)}`) : "先从左侧选择一个邮箱。"}
+      description={selectedMailbox ? (selectedMailbox.isPermanent || selectedMailbox.permanent ? "永久邮箱" : `到期时间 ${formatDate(selectedMailbox.expiresAt)}`) : "先从左侧选择一个邮箱。"}
       title={selectedMailbox?.address ?? "消息预览"}
     >
       {selectedMailbox ? (
@@ -172,8 +177,10 @@ export function MailboxMessageDetail({
             <MailboxActions
               selectedMailbox={selectedMailbox}
               isExtendPending={isExtendPending}
+              isMakePermanentPending={isMakePermanentPending}
               isReleasePending={isReleasePending}
               onExtend={onExtend}
+              onMakePermanent={onMakePermanent}
               onRelease={onRelease}
               formatRemainingHours={formatRemainingHours}
             />
@@ -278,24 +285,40 @@ export function MailboxMessageDetail({
 function MailboxActions({
   selectedMailbox,
   isExtendPending,
+  isMakePermanentPending,
   isReleasePending,
   onExtend,
+  onMakePermanent,
   onRelease,
   formatRemainingHours,
 }: {
   selectedMailbox: MailboxItem;
   isExtendPending: boolean;
+  isMakePermanentPending: boolean;
   isReleasePending: boolean;
   onExtend: () => void;
+  onMakePermanent: () => void;
   onRelease: () => void;
   formatRemainingHours: (value: string) => string;
 }) {
+  const isPermanent = selectedMailbox.isPermanent || selectedMailbox.permanent;
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button disabled={isExtendPending} onClick={onExtend} size="sm" variant="secondary">
+      <Button disabled={isExtendPending || isPermanent} onClick={onExtend} size="sm" variant="secondary">
         <TimerReset className="size-4" />
-        续期 24 小时
+        {isPermanent ? "无需续期" : "续期 24 小时"}
       </Button>
+      {!isPermanent ? (
+        <Button
+          disabled={isMakePermanentPending || selectedMailbox.status === "released"}
+          onClick={onMakePermanent}
+          size="sm"
+          variant="secondary"
+        >
+          <Sparkles className="size-4" />
+          转为永久
+        </Button>
+      ) : null}
       <Button
         disabled={isReleasePending || selectedMailbox.status === "released"}
         onClick={onRelease}
@@ -319,7 +342,7 @@ function MailboxActions({
       </Button>
       <Badge className="rounded-full" variant="outline">
         <Clock3 className="mr-1 size-3.5" />
-        {selectedMailbox.permanent ? "永久" : `剩余 ${formatRemainingHours(selectedMailbox.expiresAt)}`}
+        {isPermanent ? "永久" : `剩余 ${formatRemainingHours(selectedMailbox.expiresAt)}`}
       </Badge>
       <Badge className="rounded-full" variant={selectedMailbox.status === "active" ? "secondary" : "outline"}>
         <ShieldCheck className="mr-1 size-3.5" />

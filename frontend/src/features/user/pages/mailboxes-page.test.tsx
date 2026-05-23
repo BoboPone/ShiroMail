@@ -12,6 +12,7 @@ import {
   fetchMailboxMessageDetail,
   fetchMailboxMessageExtractions,
   fetchMailboxMessages,
+  makeMailboxPermanent,
   releaseMailbox,
 } from "../api";
 import { UserMailboxPage } from "./mailboxes-page";
@@ -24,6 +25,7 @@ vi.mock("../api", () => ({
   fetchMailboxTags: vi.fn().mockResolvedValue([]),
   createCustomMailbox: vi.fn(),
   extendMailbox: vi.fn(),
+  makeMailboxPermanent: vi.fn(),
   releaseMailbox: vi.fn(),
   downloadMailboxMessageRaw: vi.fn(),
   downloadMailboxMessageAttachment: vi.fn(),
@@ -173,6 +175,23 @@ describe("UserMailboxPage", () => {
       status: "active",
       permanent: false,
       expiresAt: "2026-04-04T10:00:00Z",
+      retentionDays: 0,
+      forwardTo: "",
+      forwardKeepCopy: false,
+      createdAt: "2026-04-02T10:00:00Z",
+      updatedAt: "2026-04-02T10:00:00Z",
+    });
+    vi.mocked(makeMailboxPermanent).mockResolvedValue({
+      id: 7,
+      userId: 1,
+      domainId: 1,
+      domain: "example.test",
+      localPart: "alpha",
+      address: "alpha@example.test",
+      status: "active",
+      permanent: true,
+      isPermanent: true,
+      expiresAt: "9999-12-31T23:59:59Z",
       retentionDays: 0,
       forwardTo: "",
       forwardKeepCopy: false,
@@ -391,5 +410,30 @@ describe("UserMailboxPage", () => {
     });
 
     expect((await screen.findAllByText("还没有可用邮箱")).length).toBeGreaterThan(0);
+  });
+
+  it("converts an existing mailbox to permanent", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <UserMailboxPage />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "转为永久" }))[0]);
+
+    await waitFor(() => {
+      expect(vi.mocked(makeMailboxPermanent).mock.calls[0]?.[0]).toBe(7);
+    });
   });
 });

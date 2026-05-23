@@ -153,6 +153,52 @@ func TestCleanupExpiredMailboxData(t *testing.T) {
 	}
 }
 
+func TestCleanupExpiredMailboxDataSkipsPermanentMailboxes(t *testing.T) {
+	mailboxRepo := mailbox.NewMemoryRepository()
+	messageRepo := message.NewMemoryRepository()
+
+	permanentMailbox, err := mailboxRepo.Create(context.Background(), mailbox.Mailbox{
+		UserID:      1,
+		DomainID:    1,
+		Domain:      "example.test",
+		LocalPart:   "permanent",
+		Address:     "permanent@example.test",
+		Status:      "active",
+		ExpiresAt:   time.Now().Add(-1 * time.Hour),
+		IsPermanent: true,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("expected permanent mailbox fixture, got %v", err)
+	}
+
+	if err := messageRepo.UpsertFromLegacySync(context.Background(), permanentMailbox.ID, permanentMailbox.LocalPart, ingest.ParsedMessage{
+		LegacyMailboxKey: permanentMailbox.LocalPart,
+		LegacyMessageKey: "permanent-1",
+		FromAddr:         "cleanup@example.com",
+		ToAddr:           permanentMailbox.Address,
+		Subject:          "Keep me",
+		TextPreview:      "permanent-body",
+		HTMLPreview:      "<p>permanent-body</p>",
+		ReceivedAt:       time.Now(),
+	}); err != nil {
+		t.Fatalf("expected seeded message, got %v", err)
+	}
+
+	if err := jobs.RunCleanupExpiredJob(context.Background(), mailboxRepo, messageRepo, nil, nil); err != nil {
+		t.Fatalf("expected cleanup success, got %v", err)
+	}
+
+	msg, err := messageRepo.GetByMailboxAndID(context.Background(), permanentMailbox.ID, 1)
+	if err != nil {
+		t.Fatalf("expected stored message after cleanup, got %v", err)
+	}
+	if msg.IsDeleted {
+		t.Fatalf("expected permanent mailbox message to survive cleanup: %+v", msg)
+	}
+}
+
 func TestCleanupExpiredMailboxDataRemovesExpiredStoredFiles(t *testing.T) {
 	ctx := context.Background()
 	mailboxRepo := mailbox.NewMemoryRepository()

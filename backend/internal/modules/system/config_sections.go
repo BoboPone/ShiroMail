@@ -6,13 +6,13 @@ import (
 )
 
 type SiteIdentityConfig struct {
-	SiteName        string `json:"siteName"`
-	Slogan          string `json:"slogan"`
-	SupportEmail    string `json:"supportEmail"`
-	SiteIconURL     string `json:"siteIconUrl"`
-	AppBaseURL      string `json:"appBaseUrl"`
-	DefaultLanguage string `json:"defaultLanguage"`
-	DefaultTimeZone string `json:"defaultTimeZone"`
+	SiteName              string `json:"siteName"`
+	Slogan                string `json:"slogan"`
+	SupportEmail          string `json:"supportEmail"`
+	SiteIconURL           string `json:"siteIconUrl"`
+	AppBaseURL            string `json:"appBaseUrl"`
+	DefaultLanguage       string `json:"defaultLanguage"`
+	DefaultTimeZone       string `json:"defaultTimeZone"`
 	AmbientThemeEnabled   bool   `json:"ambientThemeEnabled"`
 	AmbientThemeIntensity string `json:"ambientThemeIntensity"`
 }
@@ -192,13 +192,13 @@ func defaultConfigValueForKey(key string) map[string]any {
 	switch key {
 	case ConfigKeySiteIdentity:
 		return map[string]any{
-			"siteName":        "Shiro Email",
-			"slogan":          "Enterprise temporary mail platform",
-			"supportEmail":    "support@shiro.local",
-			"siteIconUrl":     "",
-			"appBaseUrl":      "http://localhost:5173",
-			"defaultLanguage": "zh-CN",
-			"defaultTimeZone": "Asia/Shanghai",
+			"siteName":              "Shiro Email",
+			"slogan":                "Enterprise temporary mail platform",
+			"supportEmail":          "support@shiro.local",
+			"siteIconUrl":           "",
+			"appBaseUrl":            "http://localhost:5173",
+			"defaultLanguage":       "zh-CN",
+			"defaultTimeZone":       "Asia/Shanghai",
 			"ambientThemeEnabled":   true,
 			"ambientThemeIntensity": "balanced",
 		}
@@ -254,8 +254,8 @@ func defaultConfigValueForKey(key string) map[string]any {
 		}
 	case ConfigKeyMailInboundPolicy:
 		return map[string]any{
-			"allowCatchAll":             false,
-			"requireExistingMailbox":    true,
+			"allowCatchAll":             true,
+			"requireExistingMailbox":    false,
 			"retainRawDays":             30,
 			"maxAttachmentSizeMB":       15,
 			"rejectExecutableFiles":     true,
@@ -395,8 +395,8 @@ func normalizeConfigValue(key string, value map[string]any) map[string]any {
 		base["transportMode"] = normalizeMailTransportMode(base["transportMode"])
 		base["insecureSkipVerify"] = normalizeBool(base["insecureSkipVerify"], false)
 	case key == ConfigKeyMailInboundPolicy:
-		base["allowCatchAll"] = normalizeBool(base["allowCatchAll"], false)
-		base["requireExistingMailbox"] = normalizeBool(base["requireExistingMailbox"], true)
+		base["allowCatchAll"] = normalizeBool(base["allowCatchAll"], true)
+		base["requireExistingMailbox"] = normalizeBool(base["requireExistingMailbox"], false)
 		base["retainRawDays"] = normalizeInt(base["retainRawDays"], 30)
 		base["maxAttachmentSizeMB"] = normalizeInt(base["maxAttachmentSizeMB"], 15)
 		base["rejectExecutableFiles"] = normalizeBool(base["rejectExecutableFiles"], true)
@@ -613,13 +613,13 @@ func LoadPublicSiteSettings(ctx context.Context, repo ConfigRepository) (PublicS
 		switch item.Key {
 		case ConfigKeySiteIdentity:
 			settings.Identity = SiteIdentityConfig{
-				SiteName:        normalizeString(item.Value["siteName"], "Shiro Email"),
-				Slogan:          normalizeString(item.Value["slogan"], ""),
-				SupportEmail:    normalizeString(item.Value["supportEmail"], ""),
-				SiteIconURL:     normalizeString(item.Value["siteIconUrl"], ""),
-				AppBaseURL:      normalizeString(item.Value["appBaseUrl"], "http://localhost:5173"),
-				DefaultLanguage: normalizeString(item.Value["defaultLanguage"], "zh-CN"),
-				DefaultTimeZone: normalizeString(item.Value["defaultTimeZone"], "Asia/Shanghai"),
+				SiteName:              normalizeString(item.Value["siteName"], "Shiro Email"),
+				Slogan:                normalizeString(item.Value["slogan"], ""),
+				SupportEmail:          normalizeString(item.Value["supportEmail"], ""),
+				SiteIconURL:           normalizeString(item.Value["siteIconUrl"], ""),
+				AppBaseURL:            normalizeString(item.Value["appBaseUrl"], "http://localhost:5173"),
+				DefaultLanguage:       normalizeString(item.Value["defaultLanguage"], "zh-CN"),
+				DefaultTimeZone:       normalizeString(item.Value["defaultTimeZone"], "Asia/Shanghai"),
 				AmbientThemeEnabled:   normalizeBool(item.Value["ambientThemeEnabled"], true),
 				AmbientThemeIntensity: normalizeAmbientThemeIntensity(item.Value["ambientThemeIntensity"]),
 			}

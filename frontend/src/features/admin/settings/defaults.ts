@@ -183,8 +183,8 @@ export const defaultMailDeliverySettings: MailDeliverySettings = {
 };
 
 export const defaultMailInboundSettings: MailInboundSettings = {
-  allowCatchAll: false,
-  requireExistingMailbox: true,
+  allowCatchAll: true,
+  requireExistingMailbox: false,
   retainRawDays: 30,
   maxAttachmentSizeMB: 15,
   rejectExecutableFiles: true,

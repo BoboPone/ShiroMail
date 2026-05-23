@@ -36,6 +36,8 @@ var ErrDomainHasChildren = errors.New("domain still has subdomains")
 var ErrProviderAccountInUse = errors.New("provider account is still bound to domains")
 var ErrProviderAccountImmutableFieldsLocked = errors.New("provider and auth type cannot be changed while domains are bound")
 
+const adminMailboxDefaultTTLHours = 24
+
 type OverviewDTO struct {
 	ActiveMailboxCount int `json:"activeMailboxCount"`
 	TodayMessageCount  int `json:"todayMessageCount"`
@@ -53,6 +55,7 @@ type MailboxFeedItem struct {
 	OwnerUsername string    `json:"ownerUsername"`
 	Status        string    `json:"status"`
 	ExpiresAt     time.Time `json:"expiresAt"`
+	IsPermanent   bool      `json:"isPermanent"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
@@ -588,24 +591,7 @@ func (s *Service) ListMailboxes(ctx context.Context) ([]MailboxFeedItem, error) 
 
 	feed := make([]MailboxFeedItem, 0, len(items))
 	for _, item := range items {
-		owner, findErr := s.authRepo.FindUserByID(ctx, item.UserID)
-		if findErr != nil {
-			continue
-		}
-
-		feed = append(feed, MailboxFeedItem{
-			ID:            item.ID,
-			UserID:        item.UserID,
-			DomainID:      item.DomainID,
-			Domain:        item.Domain,
-			LocalPart:     item.LocalPart,
-			Address:       item.Address,
-			OwnerUsername: owner.Username,
-			Status:        item.Status,
-			ExpiresAt:     item.ExpiresAt,
-			CreatedAt:     item.CreatedAt,
-			UpdatedAt:     item.UpdatedAt,
-		})
+		feed = append(feed, s.buildMailboxFeedItem(ctx, item))
 	}
 
 	sort.Slice(feed, func(i, j int) bool {
@@ -619,8 +605,125 @@ func (s *Service) ListMailboxDomains(ctx context.Context) ([]domain.Domain, erro
 	return s.domainRepo.ListActive(ctx)
 }
 
+func (s *Service) OpenMailboxByAddress(ctx context.Context, actorID uint64, req mailbox.OpenMailboxByAddressRequest) (MailboxFeedItem, bool, error) {
+	localPart, domainName, err := mailbox.ResolveMailboxAddress(req.Address)
+	if err != nil {
+		return MailboxFeedItem{}, false, err
+	}
+	resolvedLocalPart, err := mailbox.ResolveLocalPart(localPart)
+	if err != nil {
+		return MailboxFeedItem{}, false, err
+	}
+	address := resolvedLocalPart + "@" + domainName
+
+	now := time.Now()
+	existing, lookupErr := s.mailboxRepo.FindByAddress(ctx, address)
+	if lookupErr == nil {
+		item, restoreErr := s.restoreMailboxForAdminOpen(ctx, actorID, existing, domainName, resolvedLocalPart, address, now)
+		return item, false, restoreErr
+	} else if !errors.Is(lookupErr, mailbox.ErrMailboxNotFound) {
+		return MailboxFeedItem{}, false, lookupErr
+	}
+
+	selectedDomain, err := s.findActiveMailboxDomain(ctx, domainName)
+	if err != nil {
+		return MailboxFeedItem{}, false, err
+	}
+
+	ownerUserID := actorID
+	if selectedDomain.OwnerUserID != nil {
+		ownerUserID = *selectedDomain.OwnerUserID
+	}
+
+	item, err := s.mailboxRepo.Create(ctx, mailbox.Mailbox{
+		UserID:      ownerUserID,
+		DomainID:    selectedDomain.ID,
+		Domain:      domainName,
+		LocalPart:   resolvedLocalPart,
+		Address:     address,
+		Status:      "active",
+		ExpiresAt:   now.Add(adminMailboxDefaultTTLHours * time.Hour),
+		IsPermanent: false,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+	if err != nil {
+		return MailboxFeedItem{}, false, err
+	}
+
+	restoredMessages, err := s.restoreMailboxMessages(ctx, item.ID, item.UserID, item.Address)
+	if err != nil {
+		return MailboxFeedItem{}, false, err
+	}
+	s.invalidateMailboxCaches(ctx, item.UserID)
+	_, _ = s.auditRepo.Create(ctx, actorID, "admin.mailbox.open_by_address", "mailbox", strconv.FormatUint(item.ID, 10), map[string]any{
+		"userId":               item.UserID,
+		"domainId":             item.DomainID,
+		"managedDomain":        selectedDomain.Domain,
+		"address":              item.Address,
+		"restoredMessageCount": restoredMessages,
+	})
+	return s.buildMailboxFeedItem(ctx, item), true, nil
+}
+
+func (s *Service) restoreMailboxForAdminOpen(ctx context.Context, actorID uint64, existing mailbox.Mailbox, domainName string, localPart string, address string, now time.Time) (MailboxFeedItem, error) {
+	if mailbox.IsActiveAt(existing, now) {
+		if _, err := s.restoreMailboxMessages(ctx, existing.ID, existing.UserID, address); err != nil {
+			return MailboxFeedItem{}, err
+		}
+		return s.buildMailboxFeedItem(ctx, existing), nil
+	}
+
+	restored := existing
+	restored.Domain = domainName
+	restored.LocalPart = localPart
+	restored.Address = address
+	restored.Status = "active"
+	if !restored.IsPermanent {
+		restored.ExpiresAt = now.Add(adminMailboxDefaultTTLHours * time.Hour)
+	}
+	restored.UpdatedAt = now
+
+	updated, err := s.mailboxRepo.Update(ctx, restored)
+	if err != nil {
+		return MailboxFeedItem{}, err
+	}
+
+	restoredMessages, err := s.restoreMailboxMessages(ctx, updated.ID, updated.UserID, updated.Address)
+	if err != nil {
+		return MailboxFeedItem{}, err
+	}
+	s.invalidateMailboxCaches(ctx, updated.UserID)
+	_, _ = s.auditRepo.Create(ctx, actorID, "admin.mailbox.open_by_address", "mailbox", strconv.FormatUint(updated.ID, 10), map[string]any{
+		"userId":               updated.UserID,
+		"domainId":             updated.DomainID,
+		"address":              updated.Address,
+		"reactivated":          true,
+		"restoredMessageCount": restoredMessages,
+	})
+	return s.buildMailboxFeedItem(ctx, updated), nil
+}
+
+func (s *Service) restoreMailboxMessages(ctx context.Context, mailboxID uint64, userID uint64, address string) (int, error) {
+	if s.messageRepo == nil {
+		return 0, nil
+	}
+
+	restored, err := s.messageRepo.RestoreByMailboxAddress(ctx, address, mailboxID)
+	if err != nil {
+		return 0, err
+	}
+	if restored > 0 {
+		s.invalidateMailboxCaches(ctx, userID)
+		if s.messageSvc != nil {
+			s.messageSvc.InvalidateMailboxListCache(ctx, mailboxID)
+		}
+	}
+	return restored, nil
+}
+
 func (s *Service) CreateMailbox(ctx context.Context, actorID uint64, userID uint64, req mailbox.CreateMailboxRequest) (mailbox.Mailbox, error) {
-	if req.ExpiresInHours <= 0 {
+	if !req.IsPermanent && req.ExpiresInHours <= 0 {
 		return mailbox.Mailbox{}, mailbox.ErrInvalidMailboxTTL
 	}
 	if _, err := s.authRepo.FindUserByID(ctx, userID); err != nil {
@@ -640,27 +743,35 @@ func (s *Service) CreateMailbox(ctx context.Context, actorID uint64, userID uint
 		return mailbox.Mailbox{}, err
 	}
 
+	now := time.Now()
 	item, err := s.mailboxRepo.Create(ctx, mailbox.Mailbox{
-		UserID:    userID,
-		DomainID:  selectedDomain.ID,
-		Domain:    selectedDomain.Domain,
-		LocalPart: localPart,
-		Address:   localPart + "@" + selectedDomain.Domain,
-		Status:    "active",
-		ExpiresAt: time.Now().Add(time.Duration(req.ExpiresInHours) * time.Hour),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		UserID:      userID,
+		DomainID:    selectedDomain.ID,
+		Domain:      selectedDomain.Domain,
+		LocalPart:   localPart,
+		Address:     localPart + "@" + selectedDomain.Domain,
+		Status:      "active",
+		ExpiresAt:   mailbox.ResolveExpiresAt(req, now),
+		IsPermanent: req.IsPermanent,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	})
 	if err != nil {
 		return mailbox.Mailbox{}, err
 	}
 
+	restoredMessages, err := s.restoreMailboxMessages(ctx, item.ID, item.UserID, item.Address)
+	if err != nil {
+		return mailbox.Mailbox{}, err
+	}
 	s.invalidateMailboxCaches(ctx, userID)
 	_, _ = s.auditRepo.Create(ctx, actorID, "admin.mailbox.create", "mailbox", strconv.FormatUint(item.ID, 10), map[string]any{
-		"userId":         item.UserID,
-		"domainId":       item.DomainID,
-		"address":        item.Address,
-		"expiresInHours": req.ExpiresInHours,
+		"userId":               item.UserID,
+		"domainId":             item.DomainID,
+		"address":              item.Address,
+		"expiresInHours":       req.ExpiresInHours,
+		"isPermanent":          req.IsPermanent,
+		"restoredMessageCount": restoredMessages,
 	})
 	return item, nil
 }
@@ -675,12 +786,14 @@ func (s *Service) ExtendMailbox(ctx context.Context, actorID uint64, mailboxID u
 		return mailbox.Mailbox{}, err
 	}
 
-	base := time.Now()
-	if item.ExpiresAt.After(base) {
-		base = item.ExpiresAt
+	if !item.IsPermanent {
+		base := time.Now()
+		if item.ExpiresAt.After(base) {
+			base = item.ExpiresAt
+		}
+		item.ExpiresAt = base.Add(time.Duration(expiresInHours) * time.Hour)
 	}
 
-	item.ExpiresAt = base.Add(time.Duration(expiresInHours) * time.Hour)
 	item.Status = "active"
 	item.UpdatedAt = time.Now()
 
@@ -695,7 +808,35 @@ func (s *Service) ExtendMailbox(ctx context.Context, actorID uint64, mailboxID u
 		"address":        updated.Address,
 		"expiresAt":      updated.ExpiresAt,
 		"expiresInHours": expiresInHours,
+		"isPermanent":    updated.IsPermanent,
 		"status":         updated.Status,
+	})
+	return updated, nil
+}
+
+func (s *Service) MakeMailboxPermanent(ctx context.Context, actorID uint64, mailboxID uint64) (mailbox.Mailbox, error) {
+	item, err := s.mailboxRepo.FindByID(ctx, mailboxID)
+	if err != nil {
+		return mailbox.Mailbox{}, err
+	}
+
+	item.IsPermanent = true
+	item.ExpiresAt = mailbox.PermanentMailboxExpiresAt
+	item.Status = "active"
+	item.UpdatedAt = time.Now()
+
+	updated, err := s.mailboxRepo.Update(ctx, item)
+	if err != nil {
+		return mailbox.Mailbox{}, err
+	}
+
+	s.invalidateMailboxCaches(ctx, updated.UserID)
+	_, _ = s.auditRepo.Create(ctx, actorID, "admin.mailbox.make_permanent", "mailbox", strconv.FormatUint(updated.ID, 10), map[string]any{
+		"userId":      updated.UserID,
+		"address":     updated.Address,
+		"expiresAt":   updated.ExpiresAt,
+		"isPermanent": updated.IsPermanent,
+		"status":      updated.Status,
 	})
 	return updated, nil
 }
@@ -1504,6 +1645,74 @@ func (s *Service) invalidateMailboxCaches(ctx context.Context, userID uint64) {
 	_ = s.cache.Delete(ctx, adminOverviewCacheKey(), fmt.Sprintf("cache:dashboard:user:%d", userID))
 }
 
+func (s *Service) findActiveMailboxDomain(ctx context.Context, domainName string) (domain.Domain, error) {
+	normalized := normalizeMailboxDomainName(domainName)
+	if normalized == "" {
+		return domain.Domain{}, domain.ErrDomainNotFound
+	}
+
+	items, err := s.domainRepo.ListActive(ctx)
+	if err != nil {
+		return domain.Domain{}, err
+	}
+
+	bestLabelCount := -1
+	var selected domain.Domain
+	for _, item := range items {
+		managedDomain := normalizeMailboxDomainName(item.Domain)
+		if managedDomain == "" {
+			continue
+		}
+		if normalized != managedDomain && !strings.HasSuffix(normalized, "."+managedDomain) {
+			continue
+		}
+
+		labelCount := strings.Count(managedDomain, ".") + 1
+		if labelCount > bestLabelCount {
+			bestLabelCount = labelCount
+			selected = item
+		}
+	}
+
+	if bestLabelCount < 0 {
+		return domain.Domain{}, domain.ErrDomainNotFound
+	}
+	return selected, nil
+}
+
+func normalizeMailboxDomainName(value string) string {
+	normalized := strings.Trim(strings.ToLower(strings.TrimSpace(value)), ".")
+	if normalized == "" || !strings.Contains(normalized, ".") || strings.Contains(normalized, "..") {
+		return ""
+	}
+	return normalized
+}
+
+func (s *Service) buildMailboxFeedItem(ctx context.Context, item mailbox.Mailbox) MailboxFeedItem {
+	ownerUsername := "system"
+	if item.UserID != 0 {
+		ownerUsername = fmt.Sprintf("user:%d", item.UserID)
+		if owner, err := s.authRepo.FindUserByID(ctx, item.UserID); err == nil {
+			ownerUsername = owner.Username
+		}
+	}
+
+	return MailboxFeedItem{
+		ID:            item.ID,
+		UserID:        item.UserID,
+		DomainID:      item.DomainID,
+		Domain:        item.Domain,
+		LocalPart:     item.LocalPart,
+		Address:       item.Address,
+		OwnerUsername: ownerUsername,
+		Status:        item.Status,
+		ExpiresAt:     item.ExpiresAt,
+		IsPermanent:   item.IsPermanent,
+		CreatedAt:     item.CreatedAt,
+		UpdatedAt:     item.UpdatedAt,
+	}
+}
+
 func normalizeRoleCodes(roles []string) []string {
 	if len(roles) == 0 {
 		return nil
@@ -1589,16 +1798,12 @@ func normalizeAdminAPIKey(item portal.APIKey) portal.APIKey {
 }
 
 func activeAdminMailboxesOnly(items []mailbox.Mailbox) []mailbox.Mailbox {
-	now := time.Now()
 	filtered := make([]mailbox.Mailbox, 0, len(items))
+	now := time.Now()
 	for _, item := range items {
-		if item.Status != "active" {
-			continue
+		if mailbox.IsActiveAt(item, now) {
+			filtered = append(filtered, item)
 		}
-		if !item.ExpiresAt.After(now) {
-			continue
-		}
-		filtered = append(filtered, item)
 	}
 	return filtered
 }

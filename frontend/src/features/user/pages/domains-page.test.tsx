@@ -146,7 +146,7 @@ describe("UserDomainsPage", () => {
     ]);
     vi.mocked(createDomain).mockResolvedValue({
       id: 9,
-      domain: "new-root.test",
+      domain: "oom.fnrry.com",
       status: "active",
       ownerUserId: 7,
       visibility: "private",
@@ -155,7 +155,7 @@ describe("UserDomainsPage", () => {
       healthStatus: "unknown",
       isDefault: false,
       weight: 100,
-      rootDomain: "new-root.test",
+      rootDomain: "oom.fnrry.com",
       parentDomain: "",
       level: 0,
       kind: "root",
@@ -286,13 +286,13 @@ describe("UserDomainsPage", () => {
 
     const rootDialog = await screen.findByRole("dialog", { name: "添加根域名" });
     fireEvent.change(within(rootDialog).getByPlaceholderText("example.com"), {
-      target: { value: "new-root.test" },
+      target: { value: "oom.fnrry.com" },
     });
     fireEvent.click(within(rootDialog).getByRole("button", { name: "添加根域名" }));
 
     await waitFor(() => {
       expect(vi.mocked(createDomain).mock.calls[0]?.[0]).toEqual({
-        domain: "new-root.test",
+        domain: "oom.fnrry.com",
         status: "active",
         visibility: "private",
         publicationStatus: "draft",

@@ -473,7 +473,7 @@ func (s *Service) sanitizeRuleScopes(ctx context.Context, rule Rule, sourceType 
 		if err != nil {
 			continue
 		}
-		if item.Status != "active" || !item.ExpiresAt.After(now) {
+		if !mailbox.IsActiveAt(item, now) {
 			continue
 		}
 		filtered = append(filtered, mailboxID)

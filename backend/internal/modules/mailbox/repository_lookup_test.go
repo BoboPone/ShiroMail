@@ -39,7 +39,7 @@ func TestMemoryRepositoryFindActiveByAddressRejectsExpiredMailbox(t *testing.T) 
 	repo := NewMemoryRepository()
 	ctx := context.Background()
 
-	if _, err := repo.Create(ctx, Mailbox{
+	expired, err := repo.Create(ctx, Mailbox{
 		UserID:    1,
 		DomainID:  1,
 		Domain:    "example.test",
@@ -49,12 +49,21 @@ func TestMemoryRepositoryFindActiveByAddressRejectsExpiredMailbox(t *testing.T) 
 		ExpiresAt: time.Now().Add(-1 * time.Hour),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("create expired mailbox: %v", err)
 	}
 
-	_, err := repo.FindActiveByAddress(ctx, "expired@example.test")
+	_, err = repo.FindActiveByAddress(ctx, "expired@example.test")
 	if !errors.Is(err, ErrMailboxNotFound) {
 		t.Fatalf("expected ErrMailboxNotFound, got %v", err)
+	}
+
+	found, err := repo.FindByAddress(ctx, "expired@example.test")
+	if err != nil {
+		t.Fatalf("find expired mailbox by address: %v", err)
+	}
+	if found.ID != expired.ID {
+		t.Fatalf("expected mailbox %d, got %d", expired.ID, found.ID)
 	}
 }

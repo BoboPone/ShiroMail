@@ -17,6 +17,7 @@ import {
   fetchAdminMailboxMessages,
   fetchAdminMailboxes,
   fetchAdminUsers,
+  makeAdminMailboxPermanent,
   releaseAdminMailbox,
 } from "../api";
 import { AdminMailboxesPage } from "./mailboxes-page";
@@ -30,6 +31,8 @@ vi.mock("../api", () => ({
   fetchAdminMailboxMessageExtractions: vi.fn(),
   createAdminMailbox: vi.fn(),
   extendAdminMailbox: vi.fn(),
+  openAdminMailboxByAddress: vi.fn(),
+  makeAdminMailboxPermanent: vi.fn(),
   releaseAdminMailbox: vi.fn(),
   downloadAdminMailboxMessageRaw: vi.fn(),
   downloadAdminMailboxMessageAttachment: vi.fn(),
@@ -194,6 +197,21 @@ describe("AdminMailboxesPage", () => {
       createdAt: "2026-04-03T10:00:00Z",
       updatedAt: "2026-04-03T13:00:00Z",
     });
+    vi.mocked(makeAdminMailboxPermanent).mockResolvedValue({
+      id: 1,
+      userId: 1,
+      domainId: 1,
+      domain: "shiro.local",
+      localPart: "alpha",
+      address: "alpha@shiro.local",
+      ownerUsername: "alice",
+      status: "active",
+      permanent: true,
+      isPermanent: true,
+      expiresAt: "9999-12-31T23:59:59Z",
+      createdAt: "2026-04-03T10:00:00Z",
+      updatedAt: "2026-04-03T13:00:00Z",
+    });
     vi.mocked(releaseAdminMailbox).mockResolvedValue({
       id: 1,
       userId: 1,
@@ -264,6 +282,12 @@ describe("AdminMailboxesPage", () => {
     await waitFor(() => {
       expect(vi.mocked(extendAdminMailbox).mock.calls[0]?.[0]).toBe(1);
       expect(vi.mocked(extendAdminMailbox).mock.calls[0]?.[1]).toBe(24);
+    });
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "转为永久" }))[0]);
+
+    await waitFor(() => {
+      expect(vi.mocked(makeAdminMailboxPermanent).mock.calls[0]?.[0]).toBe(1);
     });
 
     fireEvent.click(screen.getByRole("button", { name: "释放邮箱" }));

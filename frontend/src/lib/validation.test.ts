@@ -33,7 +33,8 @@ describe("validation helpers", () => {
   });
 
   it("validates mailbox local part and one time code", () => {
-    expect(validateMailboxLocalPart("A")).toBe("邮箱前缀仅支持 2-64 位小写字母、数字、点、下划线或短横线，且必须以字母或数字开头。");
+    expect(validateMailboxLocalPart(".bad")).toBe("邮箱前缀仅支持 1-64 位小写字母、数字、点、下划线或短横线，且必须以字母或数字开头。");
+    expect(validateMailboxLocalPart("A")).toBeNull();
     expect(validateMailboxLocalPart("ok-mailbox")).toBeNull();
     expect(validateOneTimeCode("12ab")).toBe("验证码必须是 6 位数字。");
     expect(validateOneTimeCode("123456")).toBeNull();

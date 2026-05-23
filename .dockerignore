@@ -9,7 +9,6 @@ coverage
 frontend/node_modules
 frontend/dist
 frontend/coverage
-backend/vendor
 backend/.codex-debug
 data
 .env

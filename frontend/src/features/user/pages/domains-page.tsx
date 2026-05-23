@@ -70,11 +70,11 @@ function getDomainStatusGroup(domain: {
   healthStatus: string;
   verificationScore: number;
 }) {
-  if (domain.providerAccountId == null) {
-    return "unbound" satisfies DomainStatusGroup;
-  }
   if (domain.healthStatus === "healthy" || domain.verificationScore >= 100) {
     return "verified" satisfies DomainStatusGroup;
+  }
+  if (domain.providerAccountId == null) {
+    return "unbound" satisfies DomainStatusGroup;
   }
   return "pending" satisfies DomainStatusGroup;
 }
@@ -100,7 +100,7 @@ function getDomainStatusMeta(group: DomainStatusGroup) {
     label: "未绑定 DNS",
     iconClassName: "text-amber-500",
     cardClassName: "border-amber-500/20 bg-amber-500/5",
-    description: "还没绑定 DNS 服务商，先完成绑定后再进入 Zone 工作区。",
+    description: "还没绑定 DNS 服务商，可以手动配置 DNS 后直接验证，也可以绑定服务商自动修复。",
   };
 }
 
@@ -109,7 +109,8 @@ function isRootDomainInput(value: string) {
   if (!normalized || normalized.includes("..")) {
     return false;
   }
-  return normalized.split(".").length <= 2;
+  const labels = normalized.split(".");
+  return labels.length >= 2 && labels.every((segment) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(segment));
 }
 
 function normalizeRootDomainInput(value: string) {
@@ -693,7 +694,7 @@ export function UserDomainsPage() {
       return;
     }
     if (!isRootDomainInput(normalizedDomain)) {
-      setDomainError("这里仅支持直接添加根域名，多级子域请通过“批量生成子域名”创建。");
+      setDomainError("域名格式无效，请输入完整域名，例如 example.com 或 oom.fnrry.com。");
       return;
     }
     setDomainError(null);
@@ -1152,7 +1153,7 @@ export function UserDomainsPage() {
                         </Button>
                         <Button asChild size="sm" variant="outline">
                           <Link to={getUserDomainDnsLink(root.id, root.providerAccountId)}>
-                            {root.providerAccountId ? "配置 DNS" : "绑定 DNS"}
+                            {root.providerAccountId ? "配置 DNS" : "DNS 设置"}
                           </Link>
                         </Button>
                         <Button asChild size="sm" variant="secondary">
@@ -1245,11 +1246,11 @@ export function UserDomainsPage() {
 
                           {children.map((child) => {
                             const childStatusTone =
-                              child.providerAccountId == null
-                                ? "unbound"
-                                : child.healthStatus === "healthy" || child.verificationScore >= 100
+                              child.healthStatus === "healthy" || child.verificationScore >= 100
                                   ? "verified"
-                                  : "pending";
+                                  : child.providerAccountId == null
+                                    ? "unbound"
+                                    : "pending";
                             const childVerificationResult = verificationResults[child.id];
 
                             return (
@@ -1297,7 +1298,7 @@ export function UserDomainsPage() {
                                     </Button>
                                     <Button asChild size="sm" variant="outline">
                                       <Link to={getUserDomainDnsLink(child.id, child.providerAccountId)}>
-                                        {child.providerAccountId ? "配置 DNS" : "绑定 DNS"}
+                                        {child.providerAccountId ? "配置 DNS" : "DNS 设置"}
                                       </Link>
                                     </Button>
                                     <Button asChild size="sm" variant="secondary">

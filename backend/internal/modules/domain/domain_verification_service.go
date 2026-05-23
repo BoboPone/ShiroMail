@@ -50,18 +50,37 @@ func (s *Service) VerifyDomain(ctx context.Context, domainID uint64) (DomainVeri
 
 func (s *Service) verifyDomain(ctx context.Context, target Domain) (DomainVerificationResult, error) {
 	if target.ProviderAccountID == nil {
-		target.HealthStatus = "unknown"
-		target.VerificationScore = 0
+		profiles, err := s.PreviewPublicDNSVerifications(ctx, target)
+		if err != nil {
+			return DomainVerificationResult{}, err
+		}
+		passed, verifiedCount := summarizeDomainVerification(profiles)
+		target.VerificationScore = verifiedCount * 100 / max(len(profiles), 1)
+		if passed {
+			target.HealthStatus = "healthy"
+			target.VerificationScore = 100
+		} else if verifiedCount > 0 {
+			target.HealthStatus = "degraded"
+		} else {
+			target.HealthStatus = "unknown"
+		}
 		updated, err := s.repo.Upsert(ctx, target)
 		if err != nil {
 			return DomainVerificationResult{}, err
 		}
 		s.invalidateDomainCaches(ctx)
+		summary := "未绑定 DNS Provider，已通过公网 DNS 查询验证；仍有记录未通过，请检查建议记录和 DNS 传播。"
+		if passed {
+			summary = "未绑定 DNS Provider，已通过公网 DNS 查询验证，域名已标记为已验证。"
+		}
 		return DomainVerificationResult{
-			Domain:   updated,
-			Passed:   false,
-			Summary:  "域名尚未绑定 DNS 服务商，无法验证传播状态。",
-			Profiles: []VerificationProfile{},
+			Domain:        updated,
+			Passed:        passed,
+			Summary:       summary,
+			ZoneName:      target.Domain,
+			Profiles:      profiles,
+			VerifiedCount: verifiedCount,
+			TotalCount:    len(profiles),
 		}, nil
 	}
 
@@ -95,7 +114,7 @@ func (s *Service) verifyDomain(ctx context.Context, target Domain) (DomainVerifi
 		}, nil
 	}
 
-	profiles, err := s.PreviewProviderVerifications(ctx, *target.ProviderAccountID, matchedZone.ID, target.Domain)
+	profiles, err := s.previewProviderVerifications(ctx, *target.ProviderAccountID, matchedZone.ID, target.Domain, target.Kind)
 	if err != nil {
 		return DomainVerificationResult{}, err
 	}

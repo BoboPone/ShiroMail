@@ -38,6 +38,7 @@ import {
   summarizeMessageHeaders,
 } from "@/features/mail-preview";
 import { decodeMimeHeaderValue } from "@/lib/mail-header";
+import { getAPIErrorMessage } from "@/lib/http";
 import { paginateItems } from "@/lib/pagination";
 import { useURLPagination } from "@/hooks/use-url-pagination";
 import {
@@ -48,7 +49,9 @@ import {
   MailPlus,
   Paperclip,
   RefreshCw,
+  Search,
   ShieldCheck,
+  Sparkles,
   TimerReset,
   Trash2,
   UserRound,
@@ -67,16 +70,20 @@ import {
   fetchAdminMailboxMessages,
   fetchAdminMailboxes,
   fetchAdminUsers,
+  makeAdminMailboxPermanent,
+  openAdminMailboxByAddress,
   releaseAdminMailbox,
 } from "../api";
 
 type MessageViewMode = "text" | "html" | "raw";
 const RAW_PREVIEW_AUTOMATIC_LIMIT = 512 * 1024;
+const PERMANENT_LIFETIME_VALUE = "permanent";
 
 const ttlOptions = [
   { label: "24 小时", value: "24", keywords: ["1 day", "24"] },
   { label: "72 小时", value: "72", keywords: ["3 days", "72"] },
   { label: "168 小时", value: "168", keywords: ["7 days", "168"] },
+  { label: "永久", value: PERMANENT_LIFETIME_VALUE, keywords: ["permanent", "forever"] },
 ];
 const mailboxAutoRefreshOptions = [
   { label: "手动刷新", value: "0", keywords: ["manual", "off", "0"] },
@@ -118,8 +125,9 @@ export function AdminMailboxesPage() {
   const [selectedMessageId, setSelectedMessageId] = useState<number | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [domainId, setDomainId] = useState("");
-  const [ttlHours, setTtlHours] = useState<number>(24);
+  const [mailboxLifetime, setMailboxLifetime] = useState("24");
   const [localPart, setLocalPart] = useState("");
+  const [mailboxAddress, setMailboxAddress] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [releaseDialogOpen, setReleaseDialogOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
@@ -458,6 +466,23 @@ export function AdminMailboxesPage() {
     },
   });
 
+  const openByAddressMutation = useMutation({
+    mutationFn: openAdminMailboxByAddress,
+    onSuccess: async (item) => {
+      setFeedback(`已打开邮箱 ${item.address}`);
+      setMailboxAddress(item.address);
+      await invalidateMailboxData();
+      setMailboxesPage(1);
+      setSearchValue(item.address);
+      setSelectedUserId(String(item.userId));
+      setSelectedMailboxId(item.id);
+      setSelectedMessageId(null);
+    },
+    onError: (error) => {
+      setFeedback(getAPIErrorMessage(error, "打开邮箱失败，请稍后重试。"));
+    },
+  });
+
   const extendMutation = useMutation({
     mutationFn: ({ mailboxId, expiresInHours }: { mailboxId: number; expiresInHours: number }) =>
       extendAdminMailbox(mailboxId, expiresInHours),
@@ -467,6 +492,17 @@ export function AdminMailboxesPage() {
     },
     onError: () => {
       setFeedback("续期失败，请稍后重试。");
+    },
+  });
+
+  const makePermanentMutation = useMutation({
+    mutationFn: makeAdminMailboxPermanent,
+    onSuccess: async (updated) => {
+      setFeedback(`已将 ${updated.address} 转为永久邮箱`);
+      await invalidateMailboxData();
+    },
+    onError: () => {
+      setFeedback("转为永久失败，请稍后重试。");
     },
   });
 
@@ -553,6 +589,50 @@ export function AdminMailboxesPage() {
             <Card className="border-border/60 bg-muted/10 shadow-none">
               <CardContent className="space-y-4 py-4">
                 <div className="flex items-center gap-2 text-sm font-medium">
+                  <Search className="size-4" />
+                  <span>打开任意受管邮箱</span>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+                  <WorkspaceField label="完整邮箱地址">
+                    <Input
+                      onChange={(event) => setMailboxAddress(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" || !mailboxAddress.trim()) {
+                          return;
+                        }
+                        event.preventDefault();
+                        setFeedback(null);
+                        openByAddressMutation.mutate(mailboxAddress.trim());
+                      }}
+                      placeholder="reader@example.com"
+                      value={mailboxAddress}
+                    />
+                  </WorkspaceField>
+
+                  <div className="flex items-end">
+                    <Button
+                      className="w-full md:w-auto"
+                      disabled={!mailboxAddress.trim() || openByAddressMutation.isPending}
+                      onClick={() => {
+                        if (!mailboxAddress.trim()) {
+                          return;
+                        }
+                        setFeedback(null);
+                        openByAddressMutation.mutate(mailboxAddress.trim());
+                      }}
+                    >
+                      <Search className="size-4" />
+                      {openByAddressMutation.isPending ? "打开中..." : "打开邮箱"}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/60 bg-muted/10 shadow-none">
+              <CardContent className="space-y-4 py-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
                   <MailPlus className="size-4" />
                   <span>创建新邮箱</span>
                 </div>
@@ -604,11 +684,11 @@ export function AdminMailboxesPage() {
                     <OptionCombobox
                       ariaLabel="邮箱有效期"
                       emptyLabel="没有匹配的有效期"
-                      onValueChange={(value) => setTtlHours(Number(value))}
+                      onValueChange={(value) => setMailboxLifetime(value || "24")}
                       options={ttlOptions}
                       placeholder="选择有效期"
                       searchPlaceholder="搜索有效期"
-                      value={String(ttlHours)}
+                      value={mailboxLifetime}
                     />
                   </WorkspaceField>
 
@@ -621,10 +701,12 @@ export function AdminMailboxesPage() {
                           return;
                         }
                         setFeedback(null);
+                        const isPermanent = mailboxLifetime === PERMANENT_LIFETIME_VALUE;
                         createMutation.mutate({
                           userId: Number(selectedUserId),
                           domainId: Number(domainId),
-                          expiresInHours: ttlHours,
+                          expiresInHours: isPermanent ? 0 : Number(mailboxLifetime),
+                          isPermanent,
                           localPart: localPart.trim() || undefined,
                         });
                       }}
@@ -696,7 +778,7 @@ export function AdminMailboxesPage() {
                             <WorkspaceBadge>{mailbox.status === "active" ? "活跃" : mailbox.status}</WorkspaceBadge>
                           </div>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            <span>{mailbox.permanent ? "永久邮箱" : `剩余 ${formatRemainingHours(mailbox.expiresAt)}`}</span>
+                            <span>{mailbox.isPermanent || mailbox.permanent ? "永久邮箱" : `剩余 ${formatRemainingHours(mailbox.expiresAt)}`}</span>
                             <span>更新于 {formatDate(mailbox.updatedAt)}</span>
                           </div>
                         </CardContent>
@@ -721,14 +803,20 @@ export function AdminMailboxesPage() {
         </div>
 
         <WorkspacePanel
-          description={selectedMailbox ? (selectedMailbox.permanent ? `归属 ${selectedMailbox.ownerUsername} · 永久邮箱` : `归属 ${selectedMailbox.ownerUsername} · 到期 ${formatDate(selectedMailbox.expiresAt)}`) : "先从左侧选择一个邮箱。"}
+          description={
+            selectedMailbox
+              ? selectedMailbox.isPermanent || selectedMailbox.permanent
+                ? `归属 ${selectedMailbox.ownerUsername} · 永久邮箱`
+                : `归属 ${selectedMailbox.ownerUsername} · 到期 ${formatDate(selectedMailbox.expiresAt)}`
+              : "先从左侧选择一个邮箱。"
+          }
           title={selectedMailbox?.address ?? "消息预览"}
         >
           {selectedMailbox ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  disabled={extendMutation.isPending}
+                  disabled={extendMutation.isPending || selectedMailbox.isPermanent || selectedMailbox.permanent}
                   onClick={() => {
                     setFeedback(null);
                     extendMutation.mutate({ mailboxId: selectedMailbox.id, expiresInHours: 24 });
@@ -737,8 +825,22 @@ export function AdminMailboxesPage() {
                   variant="secondary"
                 >
                   <TimerReset className="size-4" />
-                  续期 24 小时
+                  {selectedMailbox.isPermanent || selectedMailbox.permanent ? "无需续期" : "续期 24 小时"}
                 </Button>
+                {!selectedMailbox.isPermanent ? (
+                  <Button
+                    disabled={makePermanentMutation.isPending || selectedMailbox.status === "released"}
+                    onClick={() => {
+                      setFeedback(null);
+                      makePermanentMutation.mutate(selectedMailbox.id);
+                    }}
+                    size="sm"
+                    variant="secondary"
+                  >
+                    <Sparkles className="size-4" />
+                    转为永久
+                  </Button>
+                ) : null}
                 <Button
                   disabled={releaseMutation.isPending || selectedMailbox.status === "released"}
                   onClick={() => setReleaseDialogOpen(true)}
@@ -754,7 +856,7 @@ export function AdminMailboxesPage() {
                 </Badge>
                 <Badge className="rounded-full" variant="outline">
                   <Clock3 className="mr-1 size-3.5" />
-                  {selectedMailbox.permanent ? "永久" : `剩余 ${formatRemainingHours(selectedMailbox.expiresAt)}`}
+                  {selectedMailbox.isPermanent || selectedMailbox.permanent ? "永久" : `剩余 ${formatRemainingHours(selectedMailbox.expiresAt)}`}
                 </Badge>
                 <Badge className="rounded-full" variant={selectedMailbox.status === "active" ? "secondary" : "outline"}>
                   <ShieldCheck className="mr-1 size-3.5" />

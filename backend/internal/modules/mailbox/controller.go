@@ -1,7 +1,8 @@
-﻿package mailbox
+package mailbox
 
 import (
 	"errors"
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -86,6 +87,34 @@ func (c *Controller) Create(ctx *gin.Context) {
 
 func (c *Controller) Extend(ctx *gin.Context) {
 	c.updateExpiry(ctx)
+}
+
+func (c *Controller) MakePermanent(ctx *gin.Context) {
+	userID, ok := currentUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+
+	mailboxID, ok := mailboxIDFromParam(ctx)
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid mailbox id"})
+		return
+	}
+
+	item, err := c.service.MakeMailboxPermanent(ctx, userID, mailboxID, currentAPIKeyArgs(ctx)...)
+	if err != nil {
+		switch {
+		case errors.Is(err, portal.ErrAPIKeyForbidden):
+			ctx.JSON(http.StatusForbidden, gin.H{"message": "forbidden"})
+		case errors.Is(err, ErrMailboxNotFound):
+			ctx.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		default:
+			ctx.JSON(http.StatusInternalServerError, gin.H{"message": "failed to make mailbox permanent"})
+		}
+		return
+	}
+	ctx.JSON(http.StatusOK, item)
 }
 
 func (c *Controller) Release(ctx *gin.Context) {

@@ -99,6 +99,67 @@ func TestServerRejectsUnknownRecipient(t *testing.T) {
 	client.expectPrefix("550")
 }
 
+func TestServerAcceptsManagedCatchAllRecipient(t *testing.T) {
+	fixture := newSMTPDirectServiceFixture(t)
+	fixture.service.SetCatchAllRecipientResolver(func(_ context.Context, address string) (mailbox.Mailbox, error) {
+		localPart, domainName, err := mailbox.ResolveMailboxAddress(address)
+		if err != nil {
+			return mailbox.Mailbox{}, err
+		}
+		return mailbox.Mailbox{
+			DomainID:    1,
+			Domain:      domainName,
+			LocalPart:   localPart,
+			Address:     address,
+			Status:      "active",
+			ExpiresAt:   mailbox.PermanentMailboxExpiresAt,
+			IsPermanent: true,
+		}, nil
+	})
+	server := NewServer(Config{
+		ListenAddr:      "127.0.0.1:0",
+		Hostname:        "shiro.local",
+		MaxMessageBytes: 1024 * 1024,
+	}, fixture.service)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ready := make(chan struct{})
+	go server.Start(ctx, func() { close(ready) })
+	<-ready
+	defer server.Drain()
+
+	conn, err := net.Dial("tcp", server.Addr())
+	if err != nil {
+		t.Fatalf("dial smtp: %v", err)
+	}
+	defer conn.Close()
+
+	client := newSMTPClient(t, conn)
+	client.expectPrefix("220")
+	client.sendCommand("EHLO localhost")
+	client.expectMultiline("250")
+	client.sendCommand("MAIL FROM:<sender@example.com>")
+	client.expectPrefix("250")
+	client.sendCommand("RCPT TO:<future@example.test>")
+	client.expectPrefix("250")
+	client.sendCommand("DATA")
+	client.expectPrefix("354")
+	client.sendData("From: sender@example.com\r\nTo: future@example.test\r\nSubject: Catch all\r\n\r\naccepted before mailbox exists")
+	client.expectPrefix("250")
+	client.sendCommand("QUIT")
+	client.expectPrefix("221")
+
+	items, err := fixture.repo.ListByMailboxID(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("list orphan messages: %v", err)
+	}
+	if len(items) != 1 || items[0].Subject != "Catch all" {
+		t.Fatalf("expected catch-all orphan message, got %#v", items)
+	}
+}
+
 func TestServerLogsDetailedRecipientRejection(t *testing.T) {
 	fixture := newSMTPDirectServiceFixture(t)
 	var logBuffer bytes.Buffer

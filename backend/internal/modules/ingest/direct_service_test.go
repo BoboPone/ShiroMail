@@ -209,6 +209,85 @@ func TestDirectServiceDeliversSingleMessageToMultipleRecipients(t *testing.T) {
 	}
 }
 
+func TestDirectServiceStoresManagedCatchAllRecipientWithoutMailbox(t *testing.T) {
+	ctx := context.Background()
+	mailboxes := mailbox.NewMemoryRepository()
+	messageStore := NewMemoryMessageRepository()
+	storage, err := NewLocalFileStorage(t.TempDir())
+	if err != nil {
+		t.Fatalf("create local file storage: %v", err)
+	}
+
+	service := NewDirectService(mailboxes, messageStore, storage)
+	service.SetCatchAllRecipientResolver(func(_ context.Context, address string) (mailbox.Mailbox, error) {
+		localPart, domainName, err := mailbox.ResolveMailboxAddress(address)
+		if err != nil {
+			return mailbox.Mailbox{}, err
+		}
+		return mailbox.Mailbox{
+			DomainID:    7,
+			Domain:      domainName,
+			LocalPart:   localPart,
+			Address:     address,
+			Status:      "active",
+			ExpiresAt:   mailbox.PermanentMailboxExpiresAt,
+			IsPermanent: true,
+		}, nil
+	})
+
+	result, err := service.Deliver(ctx, InboundEnvelope{
+		MailFrom:   "sender@example.com",
+		Recipients: []string{"future@example.test"},
+	}, strings.NewReader("From: sender@example.com\r\nTo: future@example.test\r\nSubject: Before create\r\n\r\ncatch-all body"))
+	if err != nil {
+		t.Fatalf("deliver catch-all message: %v", err)
+	}
+	if result.MailboxAddress != "future@example.test" {
+		t.Fatalf("expected future@example.test, got %s", result.MailboxAddress)
+	}
+
+	orphaned, err := messageStore.ListByMailboxID(ctx, 0)
+	if err != nil {
+		t.Fatalf("list orphan messages: %v", err)
+	}
+	if len(orphaned) != 1 {
+		t.Fatalf("expected 1 orphan message, got %d", len(orphaned))
+	}
+	if orphaned[0].Subject != "Before create" {
+		t.Fatalf("expected stored subject, got %q", orphaned[0].Subject)
+	}
+
+	created, err := mailboxes.Create(ctx, mailbox.Mailbox{
+		UserID:    1,
+		DomainID:  7,
+		Domain:    "example.test",
+		LocalPart: "future",
+		Address:   "future@example.test",
+		Status:    "active",
+		ExpiresAt: time.Now().Add(2 * time.Hour),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("create mailbox: %v", err)
+	}
+	restored, err := messageStore.RestoreByMailboxAddress(ctx, created.Address, created.ID)
+	if err != nil {
+		t.Fatalf("restore catch-all message: %v", err)
+	}
+	if restored != 1 {
+		t.Fatalf("expected 1 restored message, got %d", restored)
+	}
+
+	items, err := messageStore.ListByMailboxID(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("list restored messages: %v", err)
+	}
+	if len(items) != 1 || items[0].Subject != "Before create" {
+		t.Fatalf("expected restored catch-all message, got %#v", items)
+	}
+}
+
 func TestBuildPreviewKeepsUTF8Boundary(t *testing.T) {
 	body := strings.Repeat("测", 200)
 

@@ -43,6 +43,7 @@ export type AdminMailbox = {
   status: string;
   permanent: boolean;
   expiresAt: string;
+  isPermanent?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -507,10 +508,16 @@ export async function fetchAdminMailboxDomains() {
 export async function createAdminMailbox(input: {
   userId: number;
   domainId: number;
-  expiresInHours: number;
+  expiresInHours?: number;
+  isPermanent?: boolean;
   localPart?: string;
 }) {
   const { data } = await http.post<AdminMailbox>("/admin/mailboxes", input);
+  return data;
+}
+
+export async function openAdminMailboxByAddress(address: string) {
+  const { data } = await http.post<AdminMailbox>("/admin/mailboxes/open", { address });
   return data;
 }
 
@@ -521,6 +528,14 @@ export async function extendAdminMailbox(
   const { data } = await http.post<AdminMailbox>(
     `/admin/mailboxes/${mailboxId}/extend`,
     { expiresInHours },
+  );
+  return data;
+}
+
+export async function makeAdminMailboxPermanent(mailboxId: number) {
+  const { data } = await http.post<AdminMailbox>(
+    `/admin/mailboxes/${mailboxId}/permanent`,
+    {},
   );
   return data;
 }

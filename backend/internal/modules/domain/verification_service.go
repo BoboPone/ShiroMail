@@ -10,6 +10,11 @@ import (
 )
 
 func (s *Service) PreviewProviderVerifications(ctx context.Context, providerAccountID uint64, providerZoneID string, zoneName string) ([]VerificationProfile, error) {
+	targetKind := s.verificationKindForZoneName(ctx, zoneName, nil)
+	return s.previewProviderVerifications(ctx, providerAccountID, providerZoneID, zoneName, targetKind)
+}
+
+func (s *Service) previewProviderVerifications(ctx context.Context, providerAccountID uint64, providerZoneID string, zoneName string, targetKind string) ([]VerificationProfile, error) {
 	normalizedZoneName := strings.TrimSpace(zoneName)
 	if normalizedZoneName == "" {
 		return nil, ErrInvalidDNSChangeSetRequest
@@ -25,10 +30,10 @@ func (s *Service) PreviewProviderVerifications(ctx context.Context, providerAcco
 		return nil, err
 	}
 
-	return buildVerificationProfiles(normalizedZoneName, records, settings), nil
+	return buildVerificationProfiles(normalizedZoneName, records, settings, targetKind), nil
 }
 
-func buildVerificationProfiles(zoneName string, currentRecords []ProviderRecord, smtpSettings system.MailSMTPConfig) []VerificationProfile {
+func buildVerificationProfiles(zoneName string, currentRecords []ProviderRecord, smtpSettings system.MailSMTPConfig, targetKind string) []VerificationProfile {
 	now := time.Now()
 	mxTarget := strings.TrimSpace(smtpSettings.Hostname)
 	if mxTarget == "" {
@@ -105,6 +110,9 @@ func buildVerificationProfiles(zoneName string, currentRecords []ProviderRecord,
 			summaryFunc: verificationSummary("DMARC"),
 		},
 	}
+	if strings.EqualFold(strings.TrimSpace(targetKind), "subdomain") {
+		profiles = profiles[1:2]
+	}
 
 	items := make([]VerificationProfile, 0, len(profiles))
 	for _, profile := range profiles {
@@ -129,6 +137,22 @@ func buildVerificationProfiles(zoneName string, currentRecords []ProviderRecord,
 	return items
 }
 
+func (s *Service) verificationKindForZoneName(ctx context.Context, zoneName string, ownerUserID *uint64) string {
+	if s == nil || s.repo == nil {
+		return ""
+	}
+	item, err := s.repo.FindByDomain(ctx, strings.TrimSpace(zoneName))
+	if err != nil {
+		return ""
+	}
+	if ownerUserID != nil {
+		if item.OwnerUserID == nil || *item.OwnerUserID != *ownerUserID {
+			return ""
+		}
+	}
+	return item.Kind
+}
+
 func collectVerificationObservedRecords(expectedRecords []ProviderRecord, currentRecords []ProviderRecord) ([]ProviderRecord, string) {
 	observedRecords := make([]ProviderRecord, 0)
 	matchedCount := 0
@@ -142,7 +166,7 @@ func collectVerificationObservedRecords(expectedRecords []ProviderRecord, curren
 		}
 		exactMatch := false
 		for _, candidate := range candidates {
-			if providerRecordsEqual(normalizeProviderRecord(candidate), normalizeProviderRecord(expectedRecord)) {
+			if verificationRecordsEqual(candidate, expectedRecord) {
 				exactMatch = true
 				break
 			}
@@ -166,14 +190,41 @@ func collectVerificationObservedRecords(expectedRecords []ProviderRecord, curren
 
 func findVerificationCandidates(currentRecords []ProviderRecord, expectedRecord ProviderRecord) []ProviderRecord {
 	items := make([]ProviderRecord, 0)
-	expectedIdentity := providerRecordIdentity(normalizeProviderRecord(expectedRecord))
+	expectedIdentity := verificationRecordIdentity(expectedRecord)
 	for _, currentRecord := range currentRecords {
-		if providerRecordIdentity(normalizeProviderRecord(currentRecord)) != expectedIdentity {
+		if verificationRecordIdentity(currentRecord) != expectedIdentity {
 			continue
 		}
 		items = append(items, currentRecord)
 	}
 	return items
+}
+
+func verificationRecordIdentity(record ProviderRecord) string {
+	normalized := normalizeProviderRecord(record)
+	return strings.Join([]string{
+		normalized.Type,
+		strings.ToLower(strings.TrimSuffix(normalized.Name, ".")),
+	}, "|")
+}
+
+func verificationRecordsEqual(left ProviderRecord, right ProviderRecord) bool {
+	left = normalizeProviderRecord(left)
+	right = normalizeProviderRecord(right)
+	if verificationRecordIdentity(left) != verificationRecordIdentity(right) {
+		return false
+	}
+	return normalizeVerificationRecordValue(left) == normalizeVerificationRecordValue(right)
+}
+
+func normalizeVerificationRecordValue(record ProviderRecord) string {
+	value := strings.TrimSpace(record.Value)
+	switch strings.ToUpper(strings.TrimSpace(record.Type)) {
+	case "CNAME", "MX", "NS", "PTR":
+		return strings.ToLower(strings.TrimSuffix(value, "."))
+	default:
+		return value
+	}
 }
 
 func verificationSummary(label string) func(status string, expected []ProviderRecord) string {

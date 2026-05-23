@@ -20,6 +20,7 @@ type Repository interface {
 	SoftDeleteOlderThan(ctx context.Context, mailboxID uint64, before time.Time) error
 	SetReadByIDs(ctx context.Context, messageIDs []uint64, read bool) error
 	MailboxIDsByMessageIDs(ctx context.Context, messageIDs []uint64) (map[uint64]uint64, error)
+	RestoreByMailboxAddress(ctx context.Context, mailboxAddress string, mailboxID uint64) (int, error)
 	CountToday(ctx context.Context) int
 	CountDailyRange(ctx context.Context, days int) ([]DailyCount, error)
 	CountDailyRangeByUser(ctx context.Context, userID uint64, days int) ([]DailyCount, error)
@@ -87,6 +88,10 @@ func (r *MemoryRepository) SetReadByIDs(_ context.Context, _ []uint64, _ bool) e
 
 func (r *MemoryRepository) MailboxIDsByMessageIDs(_ context.Context, _ []uint64) (map[uint64]uint64, error) {
 	return map[uint64]uint64{}, nil
+}
+
+func (r *MemoryRepository) RestoreByMailboxAddress(ctx context.Context, mailboxAddress string, mailboxID uint64) (int, error) {
+	return r.MemoryMessageRepository.RestoreByMailboxAddress(ctx, mailboxAddress, mailboxID)
 }
 
 func (r *MemoryRepository) RecentByUser(_ context.Context, _ uint64, _ int) ([]Summary, error) {

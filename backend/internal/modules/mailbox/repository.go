@@ -26,6 +26,7 @@ type Repository interface {
 	ListByUserID(ctx context.Context, userID uint64) ([]Mailbox, error)
 	FindByID(ctx context.Context, mailboxID uint64) (Mailbox, error)
 	FindByUserAndID(ctx context.Context, userID uint64, mailboxID uint64) (Mailbox, error)
+	FindByAddress(ctx context.Context, address string) (Mailbox, error)
 	FindActiveByAddress(ctx context.Context, address string) (Mailbox, error)
 	MarkExpired(ctx context.Context, mailboxIDs []uint64) error
 	Update(ctx context.Context, mailbox Mailbox) (Mailbox, error)
@@ -117,7 +118,7 @@ func (r *MemoryRepository) CountActive(_ context.Context) int {
 	now := time.Now()
 	count := 0
 	for _, item := range r.mailboxes {
-		if item.Status == "active" && item.ExpiresAt.After(now) {
+		if IsActiveAt(item, now) {
 			count++
 		}
 	}
@@ -131,7 +132,7 @@ func (r *MemoryRepository) ListActive(_ context.Context) ([]Mailbox, error) {
 	now := time.Now()
 	items := make([]Mailbox, 0)
 	for _, item := range r.mailboxes {
-		if item.Status == "active" && item.ExpiresAt.After(now) {
+		if IsActiveAt(item, now) {
 			items = append(items, item)
 		}
 	}
@@ -196,6 +197,19 @@ func (r *MemoryRepository) FindByID(_ context.Context, mailboxID uint64) (Mailbo
 	return item, nil
 }
 
+func (r *MemoryRepository) FindByAddress(_ context.Context, address string) (Mailbox, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	needle := strings.TrimSpace(address)
+	for _, item := range r.mailboxes {
+		if strings.EqualFold(item.Address, needle) {
+			return item, nil
+		}
+	}
+	return Mailbox{}, ErrMailboxNotFound
+}
+
 func (r *MemoryRepository) FindActiveByAddress(_ context.Context, address string) (Mailbox, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -206,7 +220,7 @@ func (r *MemoryRepository) FindActiveByAddress(_ context.Context, address string
 		if !strings.EqualFold(item.Address, needle) {
 			continue
 		}
-		if item.Status != "active" || !item.ExpiresAt.After(now) {
+		if !IsActiveAt(item, now) {
 			break
 		}
 		return item, nil
@@ -220,7 +234,7 @@ func (r *MemoryRepository) ListExpiredIDs(_ context.Context, now time.Time) ([]u
 
 	ids := make([]uint64, 0)
 	for _, item := range r.mailboxes {
-		if item.Status == "active" && !item.ExpiresAt.After(now) {
+		if item.Status == "active" && !item.IsPermanent && !item.ExpiresAt.After(now) {
 			ids = append(ids, item.ID)
 		}
 	}

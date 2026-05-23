@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -21,6 +22,7 @@ type InboundStore interface {
 type ForwardingCallback func(ctx context.Context, mailboxAddress string, forwardTo string, subject string, rawBytes []byte)
 
 type DeliveryCallback func(mailboxUserID uint64, mailboxID uint64, mailboxAddress string, subject string)
+type CatchAllRecipientResolver func(ctx context.Context, address string) (mailbox.Mailbox, error)
 
 type DirectService struct {
 	mailboxes             mailbox.Repository
@@ -28,6 +30,7 @@ type DirectService struct {
 	storage               FileStorage
 	onDelivery            DeliveryCallback
 	onForwarding          ForwardingCallback
+	catchAllResolver      CatchAllRecipientResolver
 	inboundPolicyProvider InboundPolicyProvider
 	spool                 SpoolRepository
 }
@@ -48,12 +51,24 @@ func (s *DirectService) SetForwardingCallback(cb ForwardingCallback) {
 	s.onForwarding = cb
 }
 
+func (s *DirectService) SetCatchAllRecipientResolver(resolver CatchAllRecipientResolver) {
+	s.catchAllResolver = resolver
+}
+
 func (s *DirectService) SetInboundPolicyProvider(provider InboundPolicyProvider) {
 	s.inboundPolicyProvider = provider
 }
 
 func (s *DirectService) ResolveRecipient(ctx context.Context, address string) (mailbox.Mailbox, error) {
-	return s.mailboxes.FindActiveByAddress(ctx, strings.ToLower(strings.TrimSpace(address)))
+	normalized := strings.ToLower(strings.TrimSpace(address))
+	target, err := s.mailboxes.FindActiveByAddress(ctx, normalized)
+	if err == nil {
+		return target, nil
+	}
+	if !errors.Is(err, mailbox.ErrMailboxNotFound) || s.catchAllResolver == nil {
+		return mailbox.Mailbox{}, err
+	}
+	return s.catchAllResolver(ctx, normalized)
 }
 
 func (s *DirectService) Deliver(ctx context.Context, env InboundEnvelope, source io.Reader) (StoredInboundMessage, error) {
@@ -88,16 +103,24 @@ func dedupeTargets(targets []mailbox.Mailbox) []mailbox.Mailbox {
 		return targets
 	}
 
-	seen := make(map[uint64]struct{}, len(targets))
+	seen := make(map[string]struct{}, len(targets))
 	filtered := make([]mailbox.Mailbox, 0, len(targets))
 	for _, target := range targets {
-		if _, ok := seen[target.ID]; ok {
+		key := targetDedupeKey(target)
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[target.ID] = struct{}{}
+		seen[key] = struct{}{}
 		filtered = append(filtered, target)
 	}
 	return filtered
+}
+
+func targetDedupeKey(target mailbox.Mailbox) string {
+	if target.ID != 0 {
+		return fmt.Sprintf("id:%d", target.ID)
+	}
+	return "address:" + strings.ToLower(strings.TrimSpace(target.Address))
 }
 
 func (s *DirectService) deliverToTargets(ctx context.Context, env InboundEnvelope, source io.Reader, targets []mailbox.Mailbox) (StoredInboundMessage, error) {
@@ -128,7 +151,7 @@ func (s *DirectService) deliverToTargets(ctx context.Context, env InboundEnvelop
 	if err := validateInboundMessageAttachments(parsed, policy); err != nil {
 		return StoredInboundMessage{}, err
 	}
-	if s.spool != nil {
+	if s.spool != nil && allTargetsHaveMailboxIDs(targets) {
 		queued, err := s.spool.Enqueue(ctx, SpoolItem{
 			MailFrom:         env.MailFrom,
 			Recipients:       append([]string{}, env.Recipients...),
@@ -204,7 +227,7 @@ func (s *DirectService) storeParsedToTargets(ctx context.Context, env InboundEnv
 		if err := s.store.StoreInbound(ctx, target.ID, item); err != nil {
 			return StoredInboundMessage{}, err
 		}
-		if s.onDelivery != nil {
+		if target.ID != 0 && s.onDelivery != nil {
 			s.onDelivery(target.UserID, target.ID, target.Address, item.Subject)
 		}
 		if s.onForwarding != nil && strings.TrimSpace(target.ForwardTo) != "" {
@@ -257,6 +280,15 @@ func mailboxIDsFromTargets(targets []mailbox.Mailbox) []uint64 {
 		ids = append(ids, target.ID)
 	}
 	return ids
+}
+
+func allTargetsHaveMailboxIDs(targets []mailbox.Mailbox) bool {
+	for _, target := range targets {
+		if target.ID == 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func buildSourceMessageID(raw []byte) string {

@@ -2,12 +2,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchAdminDomainProviders, fetchAdminDomains, verifyAdminDomain } from "../api";
+import { fetchAdminDomainProviders, fetchAdminDomains, fetchAdminSettingsSections, verifyAdminDomain } from "../api";
 import { AdminDomainsPage } from "./domains-page";
 
 vi.mock("../api", () => ({
   fetchAdminDomains: vi.fn(),
   fetchAdminDomainProviders: vi.fn(),
+  fetchAdminSettingsSections: vi.fn(),
   upsertAdminDomain: vi.fn(),
   deleteAdminDomain: vi.fn(),
   generateAdminSubdomains: vi.fn(),
@@ -36,6 +37,27 @@ describe("AdminDomainsPage verification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    vi.mocked(fetchAdminSettingsSections).mockResolvedValue([
+      {
+        key: "mail",
+        title: "Mail",
+        description: "",
+        items: [
+          {
+            key: "mail.smtp",
+            value: {
+              enabled: true,
+              listenAddr: ":2525",
+              hostname: "mail.mmjs.top",
+              dkimCnameTarget: "shiro._domainkey.mmjs.top",
+              maxMessageBytes: 10485760,
+            },
+            updatedBy: 1,
+            updatedAt: "2026-04-03T10:00:00Z",
+          },
+        ],
+      },
+    ]);
     vi.mocked(fetchAdminDomainProviders).mockResolvedValue([]);
     vi.mocked(fetchAdminDomains).mockResolvedValue([
       {

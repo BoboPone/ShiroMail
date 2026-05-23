@@ -6,6 +6,7 @@ import {
   deleteAdminDomain,
   fetchAdminDomainProviders,
   fetchAdminDomains,
+  fetchAdminSettingsSections,
   generateAdminSubdomains,
   reviewAdminDomainPublication,
   upsertAdminDomain,
@@ -16,6 +17,7 @@ import { AdminDomainsPage } from "./domains-page";
 vi.mock("../api", () => ({
   fetchAdminDomains: vi.fn(),
   fetchAdminDomainProviders: vi.fn(),
+  fetchAdminSettingsSections: vi.fn(),
   upsertAdminDomain: vi.fn(),
   generateAdminSubdomains: vi.fn(),
   deleteAdminDomain: vi.fn(),
@@ -37,6 +39,28 @@ describe("AdminDomainsPage", () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+
+    vi.mocked(fetchAdminSettingsSections).mockResolvedValue([
+      {
+        key: "mail",
+        title: "Mail",
+        description: "",
+        items: [
+          {
+            key: "mail.smtp",
+            value: {
+              enabled: true,
+              listenAddr: ":2525",
+              hostname: "mail.mmjs.top",
+              dkimCnameTarget: "shiro._domainkey.mmjs.top",
+              maxMessageBytes: 10485760,
+            },
+            updatedBy: 1,
+            updatedAt: "2026-04-03T10:00:00Z",
+          },
+        ],
+      },
+    ]);
 
     vi.mocked(fetchAdminDomainProviders).mockResolvedValue([
       {
@@ -193,6 +217,30 @@ describe("AdminDomainsPage", () => {
     expect(await screen.findByText("域名资产")).toBeInTheDocument();
     expect((await screen.findAllByText("provider-bound.test")).length).toBeGreaterThan(0);
     expect((await screen.findAllByText("Primary Cloudflare")).length).toBeGreaterThan(0);
+  });
+
+  it("creates multilevel domains from add-domain dialog", async () => {
+    renderPage(createQueryClient());
+
+    fireEvent.click(await screen.findByRole("button", { name: "添加域名" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "添加域名" });
+    const dialogQueries = within(dialog);
+    fireEvent.change(dialogQueries.getByPlaceholderText("example.com"), {
+      target: { value: "oom.fnrry.com" },
+    });
+    fireEvent.click(dialogQueries.getByRole("button", { name: "添加" }));
+
+    await waitFor(() => {
+      expect(vi.mocked(upsertAdminDomain).mock.calls[0]?.[0]).toMatchObject({
+        domain: "oom.fnrry.com",
+        status: "active",
+        visibility: "private",
+        publicationStatus: "draft",
+        healthStatus: "unknown",
+        weight: 100,
+      });
+    });
   });
 
   it("creates subdomains from dialog", async () => {

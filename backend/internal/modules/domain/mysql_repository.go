@@ -189,8 +189,13 @@ func (r *MySQLRepository) DeleteDomain(ctx context.Context, id uint64) error {
 		return tx.Error
 	}
 
-	if _, _, _, kind := classifyDomain(row.Domain); kind == "root" {
-		if err := tx.Where("zone_name = ?", row.Domain).Delete(&database.DNSZoneRow{}).Error; err != nil {
+	rootDomain, _, _, kind, err := classifyDomainRow(ctx, tx, row)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	if kind == "root" {
+		if err := tx.Where("zone_name = ?", rootDomain).Delete(&database.DNSZoneRow{}).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -330,10 +335,15 @@ func (r *MySQLRepository) hydrateDomains(ctx context.Context, rows []database.Do
 		return items, nil
 	}
 
+	hierarchyNodes, err := loadDomainHierarchyNodes(ctx, r.db, rows)
+	if err != nil {
+		return nil, err
+	}
+
 	rootZones := make([]string, 0, len(rows))
 	seenZones := map[string]struct{}{}
 	for _, row := range rows {
-		rootDomain, _, _, _ := classifyDomain(row.Domain)
+		rootDomain, _, _, _ := classifyManagedDomain(row.Domain, row.ID, row.OwnerUserID, hierarchyNodes)
 		if _, ok := seenZones[rootDomain]; ok {
 			continue
 		}
@@ -347,7 +357,7 @@ func (r *MySQLRepository) hydrateDomains(ctx context.Context, rows []database.Do
 	}
 
 	for _, row := range rows {
-		rootDomain, parentDomain, level, kind := classifyDomain(row.Domain)
+		rootDomain, parentDomain, level, kind := classifyManagedDomain(row.Domain, row.ID, row.OwnerUserID, hierarchyNodes)
 		item := Domain{
 			ID:                row.ID,
 			Domain:            row.Domain,
@@ -441,7 +451,10 @@ func (r *MySQLRepository) loadZoneProviderMetadata(ctx context.Context, zoneName
 }
 
 func upsertDNSZoneBinding(ctx context.Context, db *gorm.DB, row database.DomainRow, providerAccountID *uint64) error {
-	rootDomain, _, _, kind := classifyDomain(row.Domain)
+	rootDomain, _, _, kind, err := classifyDomainRow(ctx, db, row)
+	if err != nil {
+		return err
+	}
 	if kind != "root" {
 		return nil
 	}
@@ -449,7 +462,7 @@ func upsertDNSZoneBinding(ctx context.Context, db *gorm.DB, row database.DomainR
 	values := database.DNSZoneRow{
 		ProviderZoneID:    rootDomain,
 		OwnerUserID:       row.OwnerUserID,
-		ZoneName:          row.Domain,
+		ZoneName:          rootDomain,
 		Status:            row.Status,
 		Visibility:        row.Visibility,
 		PublicationStatus: row.PublicationStatus,
@@ -485,6 +498,62 @@ func upsertDNSZoneBinding(ctx context.Context, db *gorm.DB, row database.DomainR
 		updates["provider_zone_id"] = values.ProviderZoneID
 	}
 	return db.WithContext(ctx).Model(&database.DNSZoneRow{}).Where("id = ?", existing.ID).Updates(updates).Error
+}
+
+func classifyDomainRow(ctx context.Context, db *gorm.DB, row database.DomainRow) (string, string, int, string, error) {
+	nodes, err := loadDomainHierarchyNodes(ctx, db, []database.DomainRow{row})
+	if err != nil {
+		return "", "", 0, "", err
+	}
+	rootDomain, parentDomain, level, kind := classifyManagedDomain(row.Domain, row.ID, row.OwnerUserID, nodes)
+	return rootDomain, parentDomain, level, kind, nil
+}
+
+func loadDomainHierarchyNodes(ctx context.Context, db *gorm.DB, rows []database.DomainRow) ([]domainHierarchyNode, error) {
+	nodes := make([]domainHierarchyNode, 0, len(rows))
+	seenDomains := make(map[string]struct{}, len(rows))
+	parentSet := map[string]struct{}{}
+
+	for _, row := range rows {
+		domainName := strings.Trim(strings.ToLower(strings.TrimSpace(row.Domain)), ".")
+		if domainName == "" {
+			continue
+		}
+		nodes = append(nodes, domainHierarchyNode{
+			ID:          row.ID,
+			Domain:      domainName,
+			OwnerUserID: row.OwnerUserID,
+		})
+		seenDomains[domainName] = struct{}{}
+		for _, candidate := range parentDomainCandidates(domainName) {
+			if _, exists := seenDomains[candidate]; exists {
+				continue
+			}
+			parentSet[candidate] = struct{}{}
+		}
+	}
+
+	if len(parentSet) == 0 {
+		return nodes, nil
+	}
+
+	parentDomains := make([]string, 0, len(parentSet))
+	for domainName := range parentSet {
+		parentDomains = append(parentDomains, domainName)
+	}
+
+	var parentRows []database.DomainRow
+	if err := db.WithContext(ctx).Where("domain IN ?", parentDomains).Find(&parentRows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range parentRows {
+		nodes = append(nodes, domainHierarchyNode{
+			ID:          row.ID,
+			Domain:      row.Domain,
+			OwnerUserID: row.OwnerUserID,
+		})
+	}
+	return nodes, nil
 }
 
 func mapProviderAccountRow(row database.ProviderAccountRow) ProviderAccount {

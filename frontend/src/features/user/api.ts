@@ -112,6 +112,7 @@ export type MailboxItem = {
   retentionDays: number;
   forwardTo: string;
   forwardKeepCopy: boolean;
+  isPermanent?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -715,18 +716,36 @@ export async function fetchMailboxMessageAttachmentBlob(mailboxId: number, messa
   return response.data instanceof Blob ? response.data : new Blob([response.data]);
 }
 
-export async function createMailbox(input: { domainId: number; expiresInHours: number; permanent?: boolean; retentionDays?: number }) {
+export async function createMailbox(input: {
+  domainId: number;
+  expiresInHours?: number;
+  permanent?: boolean;
+  isPermanent?: boolean;
+  retentionDays?: number;
+}) {
   const { data } = await http.post<MailboxItem>("/mailboxes", input);
   return data;
 }
 
-export async function createCustomMailbox(input: { domainId: number; expiresInHours: number; localPart: string; permanent?: boolean; retentionDays?: number }) {
+export async function createCustomMailbox(input: {
+  domainId: number;
+  expiresInHours?: number;
+  localPart: string;
+  permanent?: boolean;
+  isPermanent?: boolean;
+  retentionDays?: number;
+}) {
   const { data } = await http.post<MailboxItem>("/mailboxes", input);
   return data;
 }
 
 export async function extendMailbox(mailboxId: number, expiresInHours: number) {
   const { data } = await http.post<MailboxItem>(`/mailboxes/${mailboxId}/extend`, { expiresInHours });
+  return data;
+}
+
+export async function makeMailboxPermanent(mailboxId: number) {
+  const { data } = await http.post<MailboxItem>(`/mailboxes/${mailboxId}/permanent`, {});
   return data;
 }
 

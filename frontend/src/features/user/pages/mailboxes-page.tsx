@@ -37,6 +37,7 @@ import {
   fetchMailboxMessageParsedRaw,
   fetchMailboxMessageRawText,
   fetchMailboxMessages,
+  makeMailboxPermanent,
   releaseMailbox,
 } from "../api";
 import { MailboxCreateForm } from "../components/mailbox-create-form";
@@ -440,6 +441,7 @@ export function UserMailboxPage() {
       domainId: Number(effectiveDomainId),
       expiresInHours: permanent ? 0 : ttlHours,
       permanent,
+      isPermanent: permanent,
       localPart: localPart.trim().toLowerCase(),
       retentionDays,
     });
@@ -454,6 +456,17 @@ export function UserMailboxPage() {
     },
     onError: () => {
       setFeedback("续期失败，请稍后重试。");
+    },
+  });
+
+  const makePermanentMutation = useMutation({
+    mutationFn: makeMailboxPermanent,
+    onSuccess: async (updated) => {
+      setFeedback(`已将 ${updated.address} 转为永久邮箱`);
+      await invalidateMailboxData();
+    },
+    onError: () => {
+      setFeedback("转为永久失败，请稍后重试。");
     },
   });
 
@@ -599,6 +612,11 @@ export function UserMailboxPage() {
             setFeedback(null);
             extendMutation.mutate({ mailboxId: selectedMailbox.id, expiresInHours: 24 });
           }}
+          onMakePermanent={() => {
+            if (!selectedMailbox) return;
+            setFeedback(null);
+            makePermanentMutation.mutate(selectedMailbox.id);
+          }}
           onRelease={async () => {
             if (!selectedMailbox) return;
             const confirmed = await confirm({
@@ -614,6 +632,7 @@ export function UserMailboxPage() {
             }
           }}
           isExtendPending={extendMutation.isPending}
+          isMakePermanentPending={makePermanentMutation.isPending}
           isReleasePending={releaseMutation.isPending}
           onFeedback={setFeedback}
           formatDate={formatDate}

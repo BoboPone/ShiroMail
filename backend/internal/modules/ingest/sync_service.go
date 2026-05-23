@@ -166,7 +166,7 @@ func (r *MemoryMessageRepository) StoreInbound(_ context.Context, mailboxID uint
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	key := sourceMessageKey(mailboxID, item.SourceKind, item.SourceMessageID)
+	key := inboundSourceMessageKey(mailboxID, item.MailboxAddress, item.SourceKind, item.SourceMessageID)
 	record, exists := r.records[key]
 	if !exists {
 		record.ID = r.nextID
@@ -272,6 +272,31 @@ func (r *MemoryMessageRepository) SoftDeleteByMailboxIDs(_ context.Context, mail
 	return nil
 }
 
+func (r *MemoryMessageRepository) RestoreByMailboxAddress(_ context.Context, mailboxAddress string, mailboxID uint64) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	address := strings.ToLower(strings.TrimSpace(mailboxAddress))
+	if address == "" {
+		return 0, nil
+	}
+
+	restored := 0
+	for key, record := range r.records {
+		if !strings.EqualFold(record.MailboxAddress, address) && !strings.EqualFold(record.ToAddr, address) {
+			continue
+		}
+
+		delete(r.records, key)
+		record.MailboxID = mailboxID
+		record.MailboxAddress = address
+		record.IsDeleted = false
+		r.records[sourceMessageKey(mailboxID, record.SourceKind, record.SourceMessageID)] = record
+		restored++
+	}
+	return restored, nil
+}
+
 func (r *MemoryMessageRepository) CountToday(_ context.Context) int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -322,4 +347,11 @@ func cloneHeaderMap(headers map[string][]string) map[string][]string {
 
 func sourceMessageKey(mailboxID uint64, sourceKind string, sourceMessageID string) string {
 	return fmt.Sprintf("%d:%s:%s", mailboxID, sourceKind, sourceMessageID)
+}
+
+func inboundSourceMessageKey(mailboxID uint64, mailboxAddress string, sourceKind string, sourceMessageID string) string {
+	if mailboxID != 0 {
+		return sourceMessageKey(mailboxID, sourceKind, sourceMessageID)
+	}
+	return fmt.Sprintf("orphan:%s:%s:%s", strings.ToLower(strings.TrimSpace(mailboxAddress)), sourceKind, sourceMessageID)
 }

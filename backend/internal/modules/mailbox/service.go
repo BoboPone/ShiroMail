@@ -17,9 +17,10 @@ import (
 
 var ErrInvalidMailboxTTL = errors.New("expiresInHours must be greater than zero")
 var ErrInvalidLocalPart = errors.New("invalid localPart")
+var ErrInvalidMailboxAddress = errors.New("invalid mailbox address")
 var ErrDomainVerificationRequired = errors.New("subdomains must be verified before mailbox creation")
 
-var localPartPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{1,63}$`)
+var localPartPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
 
 type Service struct {
 	repo          Repository
@@ -61,7 +62,8 @@ func NewService(repo Repository, domainRepo domain.Repository, extras ...any) *S
 }
 
 func (s *Service) CreateMailbox(ctx context.Context, userID uint64, req CreateMailboxRequest, apiKeys ...portal.APIKey) (Mailbox, error) {
-	if !req.Permanent && req.ExpiresInHours <= 0 {
+	isPermanent := req.IsPermanent || req.Permanent
+	if !isPermanent && req.ExpiresInHours <= 0 {
 		return Mailbox{}, ErrInvalidMailboxTTL
 	}
 
@@ -89,12 +91,8 @@ func (s *Service) CreateMailbox(ctx context.Context, userID uint64, req CreateMa
 		}
 	}
 
-	var expiresAt time.Time
-	if req.Permanent {
-		expiresAt = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
-	} else {
-		expiresAt = time.Now().Add(time.Duration(req.ExpiresInHours) * time.Hour)
-	}
+	now := time.Now()
+	expiresAt := ResolveExpiresAt(req, now)
 	for range 5 {
 		localPart, err := ResolveLocalPart(req.LocalPart)
 		if err != nil {
@@ -108,11 +106,12 @@ func (s *Service) CreateMailbox(ctx context.Context, userID uint64, req CreateMa
 			LocalPart:     localPart,
 			Address:       localPart + "@" + selectedDomain.Domain,
 			Status:        "active",
-			Permanent:     req.Permanent,
+			Permanent:     isPermanent,
+			IsPermanent:   isPermanent,
 			ExpiresAt:     expiresAt,
 			RetentionDays: req.RetentionDays,
-			CreatedAt:     time.Now(),
-			UpdatedAt:     time.Now(),
+			CreatedAt:   now,
+			UpdatedAt:   now,
 		})
 		if createErr == nil {
 			s.invalidateCaches(ctx, userID)
@@ -166,6 +165,7 @@ func (s *Service) ExtendMailbox(ctx context.Context, userID uint64, mailboxID ui
 	if err != nil {
 		return Mailbox{}, err
 	}
+
 	if apiKey := optionalAPIKey(apiKeys...); apiKey != nil {
 		if !portal.APIKeyHasDomainBindings(*apiKey) {
 			item.Status = "active"
@@ -183,6 +183,16 @@ func (s *Service) ExtendMailbox(ctx context.Context, userID uint64, mailboxID ui
 		if !apiKeyAllowsDomainAccess(*apiKey, userID, selectedDomain, "write") {
 			return Mailbox{}, portal.ErrAPIKeyForbidden
 		}
+	}
+
+	if item.IsPermanent || item.Permanent {
+		item.Status = "active"
+		item.UpdatedAt = time.Now()
+		updated, err := s.repo.Update(ctx, item)
+		if err == nil {
+			s.invalidateCaches(ctx, userID)
+		}
+		return updated, err
 	}
 
 	base := time.Now()
@@ -210,6 +220,36 @@ func (s *Service) UpdateForwarding(ctx context.Context, userID uint64, mailboxID
 	item.ForwardKeepCopy = req.ForwardKeepCopy
 	item.UpdatedAt = time.Now()
 
+	updated, err := s.repo.Update(ctx, item)
+	if err == nil {
+		s.invalidateCaches(ctx, userID)
+	}
+	return updated, err
+}
+
+func (s *Service) MakeMailboxPermanent(ctx context.Context, userID uint64, mailboxID uint64, apiKeys ...portal.APIKey) (Mailbox, error) {
+	item, err := s.repo.FindByUserAndID(ctx, userID, mailboxID)
+	if err != nil {
+		return Mailbox{}, err
+	}
+
+	if apiKey := optionalAPIKey(apiKeys...); apiKey != nil {
+		if portal.APIKeyHasDomainBindings(*apiKey) {
+			selectedDomain, err := s.domainRepo.GetActiveByID(ctx, item.DomainID)
+			if err != nil {
+				return Mailbox{}, err
+			}
+			if !apiKeyAllowsDomainAccess(*apiKey, userID, selectedDomain, "write") {
+				return Mailbox{}, portal.ErrAPIKeyForbidden
+			}
+		}
+	}
+
+	item.IsPermanent = true
+	item.Permanent = true
+	item.ExpiresAt = PermanentMailboxExpiresAt
+	item.Status = "active"
+	item.UpdatedAt = time.Now()
 	updated, err := s.repo.Update(ctx, item)
 	if err == nil {
 		s.invalidateCaches(ctx, userID)
@@ -341,12 +381,12 @@ func (s *Service) BuildDashboard(ctx context.Context, userID uint64, apiKeys ...
 }
 
 func activeMailboxesOnly(items []Mailbox) []Mailbox {
+	now := time.Now()
 	filtered := make([]Mailbox, 0, len(items))
 	for _, item := range items {
-		if item.Status != "active" {
-			continue
+		if IsActiveAt(item, now) {
+			filtered = append(filtered, item)
 		}
-		filtered = append(filtered, item)
 	}
 	return filtered
 }
@@ -437,6 +477,25 @@ func RequiresVerifiedSubdomain(item domain.Domain) bool {
 
 func ResolveLocalPart(value string) (string, error) {
 	return resolveLocalPart(value)
+}
+
+func ResolveMailboxAddress(value string) (string, string, error) {
+	return splitMailboxAddress(value)
+}
+
+func splitMailboxAddress(value string) (string, string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" || strings.Count(normalized, "@") != 1 {
+		return "", "", ErrInvalidMailboxAddress
+	}
+
+	parts := strings.SplitN(normalized, "@", 2)
+	localPart := strings.TrimSpace(parts[0])
+	domainName := strings.Trim(strings.TrimSpace(parts[1]), ".")
+	if localPart == "" || domainName == "" || strings.Contains(domainName, "@") || strings.ContainsAny(domainName, " \t\r\n") {
+		return "", "", ErrInvalidMailboxAddress
+	}
+	return localPart, domainName, nil
 }
 
 func (s *Service) invalidateCaches(ctx context.Context, userID uint64) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -337,6 +338,26 @@ func (r *MySQLRepository) MailboxIDsByMessageIDs(ctx context.Context, messageIDs
 		result[row.ID] = row.MailboxID
 	}
 	return result, nil
+}
+
+func (r *MySQLRepository) RestoreByMailboxAddress(ctx context.Context, mailboxAddress string, mailboxID uint64) (int, error) {
+	address := strings.ToLower(strings.TrimSpace(mailboxAddress))
+	if address == "" {
+		return 0, nil
+	}
+
+	result := r.db.WithContext(ctx).
+		Model(&database.MessageRow{}).
+		Where("LOWER(mailbox_address) = ? OR LOWER(to_addr) = ?", address, address).
+		Updates(map[string]any{
+			"mailbox_id":      mailboxID,
+			"mailbox_address": address,
+			"is_deleted":      false,
+		})
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	return int(result.RowsAffected), nil
 }
 
 func (r *MySQLRepository) CountToday(ctx context.Context) int {

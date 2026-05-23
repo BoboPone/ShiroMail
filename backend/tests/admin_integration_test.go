@@ -1052,6 +1052,14 @@ func TestAdminCanExtendAndReleaseMailbox(t *testing.T) {
 		t.Fatalf("expected active mailbox after extend: %s", rr.Body.String())
 	}
 
+	rr = performJSON(server, http.MethodPost, "/api/v1/admin/mailboxes/"+strconv.FormatUint(activeMailbox.ID, 10)+"/permanent", `{}`, token)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 on mailbox make permanent, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"isPermanent":true`) || !strings.Contains(rr.Body.String(), `"status":"active"`) {
+		t.Fatalf("expected permanent active mailbox after conversion: %s", rr.Body.String())
+	}
+
 	rr = performJSON(server, http.MethodPost, "/api/v1/admin/mailboxes/"+strconv.FormatUint(activeMailbox.ID, 10)+"/release", `{}`, token)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200 on mailbox release, got %d: %s", rr.Code, rr.Body.String())
@@ -1087,6 +1095,9 @@ func TestAdminCanExtendAndReleaseMailbox(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), `admin.mailbox.extend`) {
 		t.Fatalf("expected admin mailbox extend audit entry: %s", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `admin.mailbox.make_permanent`) {
+		t.Fatalf("expected admin mailbox permanent audit entry: %s", rr.Body.String())
 	}
 	if !strings.Contains(rr.Body.String(), `admin.mailbox.release`) {
 		t.Fatalf("expected admin mailbox release audit entry: %s", rr.Body.String())

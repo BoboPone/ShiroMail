@@ -355,7 +355,7 @@ func (r *MemoryRepository) GetDNSChangeSetByID(_ context.Context, id uint64) (DN
 
 func (r *MemoryRepository) decorateDomainLocked(item Domain) Domain {
 	item = applyDomainDefaults(item)
-	item.RootDomain, item.ParentDomain, item.Level, item.Kind = classifyDomain(item.Domain)
+	item.RootDomain, item.ParentDomain, item.Level, item.Kind = r.classifyDomainLocked(item)
 	if item.ProviderAccountID == nil {
 		return item
 	}
@@ -368,6 +368,18 @@ func (r *MemoryRepository) decorateDomainLocked(item Domain) Domain {
 		return item
 	}
 	return item
+}
+
+func (r *MemoryRepository) classifyDomainLocked(item Domain) (string, string, int, string) {
+	nodes := make([]domainHierarchyNode, 0, len(r.domains))
+	for _, candidate := range r.domains {
+		nodes = append(nodes, domainHierarchyNode{
+			ID:          candidate.ID,
+			Domain:      candidate.Domain,
+			OwnerUserID: candidate.OwnerUserID,
+		})
+	}
+	return classifyManagedDomain(item.Domain, item.ID, item.OwnerUserID, nodes)
 }
 
 func (r *MemoryRepository) CountActive(_ context.Context) int {
@@ -384,16 +396,80 @@ func (r *MemoryRepository) CountActive(_ context.Context) int {
 }
 
 func classifyDomain(hostname string) (rootDomain string, parentDomain string, level int, kind string) {
-	parts := strings.Split(strings.TrimSpace(hostname), ".")
-	if len(parts) <= 2 {
-		return hostname, "", 0, "root"
+	return classifyManagedDomain(hostname, 0, nil, nil)
+}
+
+type domainHierarchyNode struct {
+	ID          uint64
+	Domain      string
+	OwnerUserID *uint64
+}
+
+func classifyManagedDomain(hostname string, id uint64, ownerUserID *uint64, nodes []domainHierarchyNode) (rootDomain string, parentDomain string, level int, kind string) {
+	normalized := strings.Trim(strings.ToLower(strings.TrimSpace(hostname)), ".")
+	if normalized == "" {
+		return "", "", 0, "root"
 	}
 
-	rootDomain = strings.Join(parts[len(parts)-2:], ".")
+	parts := strings.Split(normalized, ".")
+	rootDomain = normalized
+	for _, node := range nodes {
+		candidate := strings.Trim(strings.ToLower(strings.TrimSpace(node.Domain)), ".")
+		if candidate == "" || candidate == normalized {
+			continue
+		}
+		if id != 0 && node.ID == id {
+			continue
+		}
+		if !domainOwnersMatch(node.OwnerUserID, ownerUserID) {
+			continue
+		}
+		if !isSubdomainOf(normalized, candidate) {
+			continue
+		}
+		if rootDomain == normalized || labelCount(candidate) > labelCount(rootDomain) {
+			rootDomain = candidate
+		}
+	}
+
+	if rootDomain == normalized {
+		return normalized, "", 0, "root"
+	}
+
 	parentDomain = strings.Join(parts[1:], ".")
-	level = len(parts) - 2
+	level = len(parts) - labelCount(rootDomain)
 	kind = "subdomain"
 	return rootDomain, parentDomain, level, kind
+}
+
+func domainOwnersMatch(left *uint64, right *uint64) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+func isSubdomainOf(hostname string, parent string) bool {
+	return hostname != parent && strings.HasSuffix(hostname, "."+parent)
+}
+
+func labelCount(hostname string) int {
+	if strings.TrimSpace(hostname) == "" {
+		return 0
+	}
+	return len(strings.Split(hostname, "."))
+}
+
+func parentDomainCandidates(hostname string) []string {
+	parts := strings.Split(strings.Trim(strings.ToLower(strings.TrimSpace(hostname)), "."), ".")
+	if len(parts) <= 2 {
+		return nil
+	}
+	candidates := make([]string, 0, len(parts)-2)
+	for index := 1; index <= len(parts)-2; index++ {
+		candidates = append(candidates, strings.Join(parts[index:], "."))
+	}
+	return candidates
 }
 
 func applyDomainDefaults(item Domain) Domain {

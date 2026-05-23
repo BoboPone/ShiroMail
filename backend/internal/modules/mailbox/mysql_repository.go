@@ -25,6 +25,7 @@ type mailboxRecord struct {
 	Address         string    `gorm:"column:address"`
 	Status          string    `gorm:"column:status"`
 	Permanent       bool      `gorm:"column:permanent"`
+	IsPermanent     bool      `gorm:"column:is_permanent"`
 	ExpiresAt       time.Time `gorm:"column:expires_at"`
 	RetentionDays   int       `gorm:"column:retention_days"`
 	ForwardTo       string    `gorm:"column:forward_to"`
@@ -38,13 +39,15 @@ func NewMySQLRepository(db *gorm.DB) *MySQLRepository {
 }
 
 func (r *MySQLRepository) Create(ctx context.Context, item Mailbox) (Mailbox, error) {
+	isPermanent := item.IsPermanent || item.Permanent
 	row := database.MailboxRow{
 		UserID:        item.UserID,
 		DomainID:      item.DomainID,
 		LocalPart:     item.LocalPart,
 		Address:       item.Address,
 		Status:        item.Status,
-		Permanent:     item.Permanent,
+		Permanent:     isPermanent,
+		IsPermanent:   isPermanent,
 		ExpiresAt:     item.ExpiresAt,
 		RetentionDays: item.RetentionDays,
 		CreatedAt:     item.CreatedAt,
@@ -60,7 +63,7 @@ func (r *MySQLRepository) CountActive(ctx context.Context) int {
 	var count int64
 	if err := r.db.WithContext(ctx).
 		Model(&database.MailboxRow{}).
-		Where("status = ? AND expires_at > ?", "active", time.Now()).
+		Where("status = ? AND (is_permanent = ? OR permanent = ? OR expires_at > ?)", "active", true, true, time.Now()).
 		Count(&count).Error; err != nil {
 		return 0
 	}
@@ -69,9 +72,11 @@ func (r *MySQLRepository) CountActive(ctx context.Context) int {
 
 func (r *MySQLRepository) ListActive(ctx context.Context) ([]Mailbox, error) {
 	return r.list(ctx,
-		"mailboxes.status = ? AND mailboxes.expires_at > ?",
+		"mailboxes.status = ? AND (mailboxes.is_permanent = ? OR mailboxes.permanent = ? OR mailboxes.expires_at > ?)",
 		"mailboxes.id ASC",
 		"active",
+		true,
+		true,
 		time.Now(),
 	)
 }
@@ -139,7 +144,7 @@ func (r *MySQLRepository) ListExpiredIDs(ctx context.Context, now time.Time) ([]
 	var ids []uint64
 	err := r.db.WithContext(ctx).
 		Model(&database.MailboxRow{}).
-		Where("status = ? AND expires_at <= ?", "active", now).
+		Where("status = ? AND is_permanent = ? AND permanent = ? AND expires_at <= ?", "active", false, false, now).
 		Order("id ASC").
 		Pluck("id", &ids).Error
 	return ids, err
@@ -164,13 +169,31 @@ func (r *MySQLRepository) FindByID(ctx context.Context, mailboxID uint64) (Mailb
 	return r.getByID(ctx, mailboxID)
 }
 
+func (r *MySQLRepository) FindByAddress(ctx context.Context, address string) (Mailbox, error) {
+	items, err := r.list(
+		ctx,
+		"LOWER(mailboxes.address) = ?",
+		"mailboxes.id ASC",
+		strings.ToLower(strings.TrimSpace(address)),
+	)
+	if err != nil {
+		return Mailbox{}, err
+	}
+	if len(items) == 0 {
+		return Mailbox{}, ErrMailboxNotFound
+	}
+	return items[0], nil
+}
+
 func (r *MySQLRepository) FindActiveByAddress(ctx context.Context, address string) (Mailbox, error) {
 	items, err := r.list(
 		ctx,
-		"LOWER(mailboxes.address) = ? AND mailboxes.status = ? AND mailboxes.expires_at > ?",
+		"LOWER(mailboxes.address) = ? AND mailboxes.status = ? AND (mailboxes.is_permanent = ? OR mailboxes.permanent = ? OR mailboxes.expires_at > ?)",
 		"mailboxes.id ASC",
 		strings.ToLower(strings.TrimSpace(address)),
 		"active",
+		true,
+		true,
 		time.Now(),
 	)
 	if err != nil {
@@ -198,6 +221,7 @@ func (r *MySQLRepository) MarkExpired(ctx context.Context, mailboxIDs []uint64) 
 }
 
 func (r *MySQLRepository) Update(ctx context.Context, item Mailbox) (Mailbox, error) {
+	isPermanent := item.IsPermanent || item.Permanent
 	result := r.db.WithContext(ctx).
 		Model(&database.MailboxRow{}).
 		Where("id = ? AND user_id = ?", item.ID, item.UserID).
@@ -206,7 +230,8 @@ func (r *MySQLRepository) Update(ctx context.Context, item Mailbox) (Mailbox, er
 			"local_part":        item.LocalPart,
 			"address":           item.Address,
 			"status":            item.Status,
-			"permanent":         item.Permanent,
+			"permanent":         isPermanent,
+			"is_permanent":      isPermanent,
 			"expires_at":        item.ExpiresAt,
 			"retention_days":    item.RetentionDays,
 			"forward_to":        item.ForwardTo,
@@ -241,7 +266,7 @@ func (r *MySQLRepository) list(ctx context.Context, where string, order string, 
 	query := r.db.WithContext(ctx).
 		Table("mailboxes").
 		Select(
-			"mailboxes.id, mailboxes.user_id, mailboxes.domain_id, COALESCE(domains.domain, SUBSTRING_INDEX(mailboxes.address, '@', -1)) AS domain, mailboxes.local_part, mailboxes.address, mailboxes.status, mailboxes.permanent, mailboxes.expires_at, mailboxes.retention_days, mailboxes.forward_to, mailboxes.forward_keep_copy, mailboxes.created_at, mailboxes.updated_at",
+			"mailboxes.id, mailboxes.user_id, mailboxes.domain_id, COALESCE(domains.domain, SUBSTRING_INDEX(mailboxes.address, '@', -1)) AS domain, mailboxes.local_part, mailboxes.address, mailboxes.status, mailboxes.permanent, mailboxes.is_permanent, mailboxes.expires_at, mailboxes.retention_days, mailboxes.forward_to, mailboxes.forward_keep_copy, mailboxes.created_at, mailboxes.updated_at",
 		).
 		Joins("LEFT JOIN domains ON domains.id = mailboxes.domain_id").
 		Where(where, args...).
@@ -253,6 +278,7 @@ func (r *MySQLRepository) list(ctx context.Context, where string, order string, 
 
 	items := make([]Mailbox, 0, len(rows))
 	for _, row := range rows {
+		isPermanent := row.IsPermanent || row.Permanent
 		items = append(items, Mailbox{
 			ID:              row.ID,
 			UserID:          row.UserID,
@@ -261,7 +287,8 @@ func (r *MySQLRepository) list(ctx context.Context, where string, order string, 
 			LocalPart:       row.LocalPart,
 			Address:         row.Address,
 			Status:          row.Status,
-			Permanent:       row.Permanent,
+			Permanent:       isPermanent,
+			IsPermanent:     isPermanent,
 			ExpiresAt:       row.ExpiresAt,
 			RetentionDays:   row.RetentionDays,
 			ForwardTo:       row.ForwardTo,

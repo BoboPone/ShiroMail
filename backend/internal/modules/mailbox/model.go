@@ -15,6 +15,7 @@ type Mailbox struct {
 	Address         string    `json:"address"`
 	Status          string    `json:"status"`
 	Permanent       bool      `json:"permanent"`
+	IsPermanent     bool      `json:"isPermanent"`
 	ExpiresAt       time.Time `json:"expiresAt"`
 	RetentionDays   int       `json:"retentionDays"`
 	ForwardTo       string    `json:"forwardTo"`
@@ -29,6 +30,11 @@ type CreateMailboxRequest struct {
 	ExpiresInHours int    `json:"expiresInHours"`
 	Permanent      bool   `json:"permanent"`
 	RetentionDays  int    `json:"retentionDays"`
+	IsPermanent    bool   `json:"isPermanent"`
+}
+
+type OpenMailboxByAddressRequest struct {
+	Address string `json:"address" binding:"required"`
 }
 
 type ExtendMailboxRequest struct {
@@ -46,4 +52,17 @@ type DashboardPayload struct {
 	AvailableDomains   []domain.Domain `json:"availableDomains"`
 	Mailboxes          []Mailbox       `json:"mailboxes"`
 	UnreadCounts       map[uint64]int  `json:"unreadCounts"`
+}
+
+var PermanentMailboxExpiresAt = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
+
+func ResolveExpiresAt(req CreateMailboxRequest, now time.Time) time.Time {
+	if req.IsPermanent || req.Permanent {
+		return PermanentMailboxExpiresAt
+	}
+	return now.Add(time.Duration(req.ExpiresInHours) * time.Hour)
+}
+
+func IsActiveAt(item Mailbox, now time.Time) bool {
+	return item.Status == "active" && (item.IsPermanent || item.Permanent || item.ExpiresAt.After(now))
 }

@@ -366,6 +366,43 @@ func (c *Controller) CreateMailbox(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, item)
 }
 
+func (c *Controller) OpenMailboxByAddress(ctx *gin.Context) {
+	actorID, ok := currentUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+
+	var req mailbox.OpenMailboxByAddressRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid request"})
+		return
+	}
+
+	item, created, err := c.service.OpenMailboxByAddress(ctx, actorID, req)
+	if err != nil {
+		switch {
+		case errors.Is(err, mailbox.ErrInvalidMailboxAddress),
+			errors.Is(err, mailbox.ErrInvalidLocalPart),
+			errors.Is(err, mailbox.ErrDomainVerificationRequired):
+			ctx.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		case errors.Is(err, domain.ErrDomainNotFound):
+			ctx.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		case errors.Is(err, mailbox.ErrAddressConflict):
+			ctx.JSON(http.StatusConflict, gin.H{"message": err.Error()})
+		default:
+			ctx.JSON(http.StatusInternalServerError, gin.H{"message": "failed to open mailbox"})
+		}
+		return
+	}
+
+	if created {
+		ctx.JSON(http.StatusCreated, item)
+		return
+	}
+	ctx.JSON(http.StatusOK, item)
+}
+
 func (c *Controller) ExtendMailbox(ctx *gin.Context) {
 	actorID, ok := currentUserID(ctx)
 	if !ok {
@@ -394,6 +431,32 @@ func (c *Controller) ExtendMailbox(ctx *gin.Context) {
 			apierror.Abort(ctx, apierror.ErrMailboxInvalidTTL)
 		default:
 			apierror.Abort(ctx, apierror.InternalError("failed to extend mailbox"))
+		}
+		return
+	}
+	ctx.JSON(http.StatusOK, item)
+}
+
+func (c *Controller) MakeMailboxPermanent(ctx *gin.Context) {
+	actorID, ok := currentUserID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+
+	mailboxID, ok := parseAdminMailboxID(ctx)
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid id"})
+		return
+	}
+
+	item, err := c.service.MakeMailboxPermanent(ctx, actorID, mailboxID)
+	if err != nil {
+		switch {
+		case errors.Is(err, mailbox.ErrMailboxNotFound):
+			ctx.JSON(http.StatusNotFound, gin.H{"message": "mailbox not found"})
+		default:
+			ctx.JSON(http.StatusInternalServerError, gin.H{"message": "failed to make mailbox permanent"})
 		}
 		return
 	}

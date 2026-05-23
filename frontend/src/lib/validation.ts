@@ -1,5 +1,5 @@
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const mailboxLocalPartPattern = /^[a-z0-9][a-z0-9._-]{1,63}$/;
+const mailboxLocalPartPattern = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
 export function normalizeText(value: string | null | undefined) {
   return (value ?? "").trim();
@@ -110,7 +110,7 @@ export function validateMailboxLocalPart(value: string | null | undefined) {
     return null;
   }
   if (!mailboxLocalPartPattern.test(normalized)) {
-    return "邮箱前缀仅支持 2-64 位小写字母、数字、点、下划线或短横线，且必须以字母或数字开头。";
+    return "邮箱前缀仅支持 1-64 位小写字母、数字、点、下划线或短横线，且必须以字母或数字开头。";
   }
   return null;
 }

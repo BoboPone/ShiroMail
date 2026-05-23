@@ -47,12 +47,20 @@ import {
   deleteAdminDomain,
   fetchAdminDomainProviders,
   fetchAdminDomains,
+  fetchAdminSettingsSections,
   generateAdminSubdomains,
   reviewAdminDomainPublication,
+  type SettingsSection,
   upsertAdminDomain,
   verifyAdminDomain,
 } from "../api";
 import type { DomainOption, DomainVerificationResult } from "../../user/api";
+import {
+  CONFIG_KEY_MAIL_SMTP,
+  defaultMailSMTPSettings,
+  readString,
+} from "../settings/defaults";
+import type { MailSMTPSettings } from "../settings/types";
 
 type DomainGuideRecord = {
   key: string;
@@ -87,11 +95,11 @@ function getAdminDomainStatus(domain: {
   if (domain.publicationStatus === "pending_review") {
     return "review";
   }
-  if (domain.providerAccountId == null) {
-    return "unbound";
-  }
   if (domain.healthStatus === "healthy" || domain.verificationScore >= 100) {
     return "verified";
+  }
+  if (domain.providerAccountId == null) {
+    return "unbound";
   }
   return "pending";
 }
@@ -110,7 +118,7 @@ function getAdminDomainStatusMeta(status: ReturnType<typeof getAdminDomainStatus
       label: "未绑定 DNS",
       iconClassName: "text-amber-500",
       cardClassName: "border-amber-500/20 bg-amber-500/5",
-      description: "这些域名还没有 Provider 绑定，先补绑定再进入 DNS 工作区。",
+      description: "这些域名还没有 Provider 绑定，可以手动配置 DNS 后直接验证，也可以绑定 Provider 自动修复。",
     };
   }
   if (status === "verified") {
@@ -134,7 +142,8 @@ function isRootDomainInput(value: string) {
   if (!normalized || normalized.includes("..")) {
     return false;
   }
-  return normalized.split(".").length <= 2;
+  const labels = normalized.split(".");
+  return labels.length >= 2 && labels.every((segment) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(segment));
 }
 
 function DomainStatusIcon({
@@ -150,33 +159,40 @@ function DomainStatusIcon({
   return <CircleX className={cn("size-4", className)} />;
 }
 
-function buildRecommendedDomainRecords(domain: DomainOption): DomainGuideRecord[] {
-  const rootName = domain.rootDomain || domain.domain;
+function parseDomainGuideSMTPSettings(sections?: SettingsSection[]): MailSMTPSettings {
+  const item = sections
+    ?.flatMap((section) => section.items)
+    .find((entry) => entry.key === CONFIG_KEY_MAIL_SMTP);
+  const value = item?.value ?? defaultMailSMTPSettings;
+  return {
+    ...defaultMailSMTPSettings,
+    hostname: readString(value.hostname, defaultMailSMTPSettings.hostname),
+    dkimCnameTarget: readString(value.dkimCnameTarget, defaultMailSMTPSettings.dkimCnameTarget),
+  };
+}
+
+function buildRecommendedDomainRecords(domain: DomainOption, smtp: MailSMTPSettings): DomainGuideRecord[] {
+  const mxRecord = {
+    key: `${domain.id}-mx`,
+    type: "MX",
+    name: domain.domain,
+    value: `${smtp.hostname} (priority 10)`,
+    status: "待配置",
+    verified: false,
+  };
+  if (domain.kind === "subdomain") {
+    return [mxRecord];
+  }
   return [
     {
-      key: `${domain.id}-mx`,
-      type: "MX",
-      name: domain.domain,
-      value: "mx.shiro.email (priority 10)",
-      status: "待配置",
-      verified: false,
-    },
-    {
-      key: `${domain.id}-spf`,
+      key: `${domain.id}-ownership`,
       type: "TXT",
-      name: domain.domain,
-      value: "v=spf1 include:spf.shiro.email ~all",
+      name: `_shiro-verification.${domain.domain}`,
+      value: `shiro-ownership=${domain.domain}`,
       status: "待配置",
       verified: false,
     },
-    {
-      key: `${domain.id}-dmarc`,
-      type: "TXT",
-      name: `_dmarc.${rootName}`,
-      value: "v=DMARC1; p=quarantine; rua=mailto:dmarc@shiro.email",
-      status: "待配置",
-      verified: false,
-    },
+    mxRecord,
   ];
 }
 
@@ -335,6 +351,10 @@ function DomainVerificationDetails({
 
 export function AdminDomainsPage() {
   const queryClient = useQueryClient();
+  const settingsQuery = useQuery({
+    queryKey: ["admin-settings-sections"],
+    queryFn: fetchAdminSettingsSections,
+  });
   const persistedUI = readPersistedState(ADMIN_DOMAINS_UI_CACHE_KEY, {
     domainCardExpandedState: {} as Record<number, boolean>,
     verificationResults: {} as Record<number, DomainVerificationResult>,
@@ -382,6 +402,10 @@ export function AdminDomainsPage() {
     defaultPageSize: ADMIN_DOMAINS_PAGE_SIZE,
   });
   const isEditingDomain = editingDomainId !== null;
+  const domainGuideSMTP = useMemo(
+    () => parseDomainGuideSMTPSettings(settingsQuery.data),
+    [settingsQuery.data],
+  );
 
   const domainsQuery = useQuery({
     queryKey: ["admin-domains"],
@@ -809,7 +833,7 @@ export function AdminDomainsPage() {
                 <DialogDescription>
                   {isEditingDomain
                     ? "这里只维护域名资产本身；Provider 绑定、Zone 与 Record 操作都在 DNS 配置页完成。"
-                    : "添加自定义域名后，需要前往 DNS 配置页完成 Provider 绑定和记录校验。"}
+                    : "添加自定义域名后，可以手动配置 DNS 并直接验证，也可以绑定 Provider 自动修复记录。"}
                 </DialogDescription>
               </DialogHeader>
 
@@ -935,7 +959,7 @@ export function AdminDomainsPage() {
                   disabled={upsertMutation.isPending || creatingDomainWithVerification || draft.domain.trim() === ""}
                   onClick={() => {
                     if (!isEditingDomain && !isRootDomainInput(draft.domain)) {
-                      setDomainMutationError("这里仅支持直接添加根域名，多级子域请通过“批量生成子域名”创建。");
+                      setDomainMutationError("域名格式无效，请输入完整域名，例如 example.com 或 oom.fnrry.com。");
                       return;
                     }
                     upsertMutation.mutate({
@@ -1117,7 +1141,7 @@ export function AdminDomainsPage() {
 
                     {domains.map((domain) => {
                 const isExpanded = isDomainCardExpanded(domain);
-                const guideRecords = buildRecommendedDomainRecords(domain);
+                const guideRecords = buildRecommendedDomainRecords(domain, domainGuideSMTP);
                 const verifiedCount = guideRecords.filter((item) => item.verified).length;
                 const pendingCount = Math.max(guideRecords.length - verifiedCount, 0);
                 const statusTone = getAdminDomainStatus(domain);
@@ -1193,7 +1217,7 @@ export function AdminDomainsPage() {
                           </Button>
                           <Button asChild size="sm" variant="outline">
                             <Link to={getAdminDomainDnsLink(domain.id, domain.providerAccountId)}>
-                              {domain.providerAccountId ? "配置 DNS" : "绑定 DNS"}
+                              {domain.providerAccountId ? "配置 DNS" : "DNS 设置"}
                             </Link>
                           </Button>
                           <Button size="sm" variant="outline" onClick={() => openEditDomainDialog(domain)}>
@@ -1280,7 +1304,7 @@ export function AdminDomainsPage() {
                               <div className="space-y-1">
                                 <p className="text-sm font-semibold">域名摘要</p>
                                 <p className="text-sm text-muted-foreground">
-                                  域名管理页仅展示当前域名资产概览；Provider 绑定、真实 DNS 工作区、验证和变更操作已迁移到独立的 DNS 配置页。
+                                  域名管理页展示当前域名资产概览；Provider 绑定用于自动修复记录，手动 DNS 配置后也可以直接验证传播状态。
                                 </p>
                               </div>
                               <div className="flex flex-wrap gap-2">
@@ -1290,15 +1314,15 @@ export function AdminDomainsPage() {
                             </div>
 
                             <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
-                              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                              {guideRecords.slice(0, 4).map((record) => (
-                                <div key={record.key} className="rounded-xl border border-border/60 bg-card/50 px-3 py-2.5">
+                              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                              {guideRecords.map((record) => (
+                                <div key={record.key} className="min-w-0 rounded-xl border border-border/60 bg-card/50 px-3 py-2.5">
                                   <div className="flex items-center justify-between gap-2">
                                     <WorkspaceBadge variant="outline">{record.type}</WorkspaceBadge>
                                     <span className="text-xs text-muted-foreground">{record.status}</span>
                                   </div>
-                                  <div className="mt-2 truncate text-sm font-medium">{record.name}</div>
-                                  <div className="mt-1 truncate text-xs text-muted-foreground">{record.value}</div>
+                                  <div className="mt-2 break-all text-sm font-medium" title={record.name}>{record.name}</div>
+                                  <div className="mt-1 break-all font-mono text-xs text-muted-foreground" title={record.value}>{record.value}</div>
                                 </div>
                               ))}
                               </div>
@@ -1321,7 +1345,7 @@ export function AdminDomainsPage() {
                                         : statusTone === "review"
                                           ? "等待审核"
                                           : statusTone === "unbound"
-                                            ? "需先绑定 DNS"
+                                            ? "可手动验证"
                                             : "需继续校验"}
                                     </span>
                                   </div>
@@ -1331,7 +1355,7 @@ export function AdminDomainsPage() {
                                       {statusTone === "review"
                                         ? "处理审核"
                                         : statusTone === "unbound"
-                                          ? "绑定 Provider"
+                                          ? "配置/验证 DNS"
                                           : statusTone === "pending"
                                             ? "进入 DNS 配置"
                                             : "保持监控"}
@@ -1342,7 +1366,7 @@ export function AdminDomainsPage() {
                             </div>
 
                             <div className="mt-4 text-xs text-muted-foreground">
-                              如需绑定 Provider、校验记录或应用变更，请前往独立的 DNS 配置页。
+                              可绑定 Provider 自动修复；手动 DNS 配置完成后也可以直接点击验证。
                             </div>
                           </div>
                         </div>

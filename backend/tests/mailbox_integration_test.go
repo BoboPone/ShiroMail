@@ -80,6 +80,58 @@ func TestCreateMailboxFlow(t *testing.T) {
 	}
 }
 
+func TestCreatePermanentMailboxFlow(t *testing.T) {
+	server, token := newAuthedServer(t, "mailbox-permanent-user")
+
+	rr := performJSON(server, http.MethodPost, "/api/v1/mailboxes", `{"domainId":1,"isPermanent":true}`, token)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"isPermanent":true`) {
+		t.Fatalf("expected permanent mailbox response: %s", rr.Body.String())
+	}
+
+	rr = performJSON(server, http.MethodGet, "/api/v1/dashboard", "", token)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 on dashboard, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"activeMailboxCount":1`) || !strings.Contains(rr.Body.String(), `"isPermanent":true`) {
+		t.Fatalf("expected permanent mailbox in dashboard: %s", rr.Body.String())
+	}
+}
+
+func TestMakeExistingMailboxPermanentFlow(t *testing.T) {
+	server, token := newAuthedServer(t, "mailbox-convert-permanent-user")
+
+	rr := performJSON(server, http.MethodPost, "/api/v1/mailboxes", `{"domainId":1,"expiresInHours":24}`, token)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if strings.Contains(rr.Body.String(), `"isPermanent":true`) {
+		t.Fatalf("expected temporary mailbox before conversion: %s", rr.Body.String())
+	}
+	mailboxID := extractJSONScalarField(rr.Body.String(), "id")
+	if mailboxID == "" {
+		t.Fatalf("expected mailbox id in response: %s", rr.Body.String())
+	}
+
+	rr = performJSON(server, http.MethodPost, "/api/v1/mailboxes/"+mailboxID+"/permanent", `{}`, token)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 on make permanent, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"isPermanent":true`) || !strings.Contains(rr.Body.String(), `"status":"active"`) {
+		t.Fatalf("expected converted permanent mailbox response: %s", rr.Body.String())
+	}
+
+	rr = performJSON(server, http.MethodGet, "/api/v1/dashboard", "", token)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 on dashboard, got %d: %s", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"isPermanent":true`) || !strings.Contains(rr.Body.String(), `"activeMailboxCount":1`) {
+		t.Fatalf("expected converted permanent mailbox in dashboard: %s", rr.Body.String())
+	}
+}
+
 func TestExtendAndReleaseMailboxFlow(t *testing.T) {
 	server, token := newAuthedServer(t, "mailbox-operator")
 

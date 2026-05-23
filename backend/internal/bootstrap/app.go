@@ -624,6 +624,7 @@ func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 	api.GET("/mailboxes", apiKeyGuard, middleware.RequireAPIScope("mailboxes.read"), mailboxController.List)
 	api.POST("/mailboxes", mailboxWriteRL, apiKeyGuard, middleware.RequireAPIScope("mailboxes.write"), mailboxController.Create)
 	api.POST("/mailboxes/:mailboxId/extend", mailboxWriteRL, apiKeyGuard, middleware.RequireAPIScope("mailboxes.write"), mailboxController.Extend)
+	api.POST("/mailboxes/:mailboxId/permanent", mailboxWriteRL, apiKeyGuard, middleware.RequireAPIScope("mailboxes.write"), mailboxController.MakePermanent)
 	api.POST("/mailboxes/:mailboxId/release", mailboxWriteRL, apiKeyGuard, middleware.RequireAPIScope("mailboxes.write"), mailboxController.Release)
 	api.PUT("/mailboxes/:mailboxId/forwarding", mailboxWriteRL, authGuard, mailboxController.UpdateForwarding)
 	api.GET("/mailbox-tags", authGuard, tagController.List)
@@ -703,7 +704,9 @@ func buildRouter(cfg config.Config, state *AppState) *gin.Engine {
 	adminGroup.GET("/mailboxes", adminController.ListMailboxes)
 	adminGroup.GET("/mailboxes/domains", adminController.ListMailboxDomains)
 	adminGroup.POST("/mailboxes", mailboxWriteRL, adminController.CreateMailbox)
+	adminGroup.POST("/mailboxes/open", mailboxWriteRL, adminController.OpenMailboxByAddress)
 	adminGroup.POST("/mailboxes/:mailboxId/extend", mailboxWriteRL, adminController.ExtendMailbox)
+	adminGroup.POST("/mailboxes/:mailboxId/permanent", mailboxWriteRL, adminController.MakeMailboxPermanent)
 	adminGroup.POST("/mailboxes/:mailboxId/release", mailboxWriteRL, adminController.ReleaseMailbox)
 	adminGroup.GET("/mailboxes/:mailboxId/messages", adminController.ListMailboxMessages)
 	adminGroup.GET("/mailboxes/:mailboxId/messages/:id", adminController.MailboxMessageDetail)
@@ -812,7 +815,8 @@ func newMemoryAppState() *AppState {
 	domainRepo := domain.NewMemoryRepository(nil)
 	mailboxRepo := mailbox.NewMemoryRepository()
 	messageRepo := message.NewMemoryRepository()
-	directIngest, mailStorage, err := newDirectIngestService("", mailboxRepo, messageRepo)
+	configRepo := system.NewMemoryConfigRepository()
+	directIngest, mailStorage, err := newDirectIngestService("", mailboxRepo, messageRepo, domainRepo, configRepo)
 	if err != nil {
 		log.Fatalf("init direct ingest: %v", err)
 	}
@@ -825,7 +829,7 @@ func newMemoryAppState() *AppState {
 		RuleRepo:      rule.NewMemoryRepository(),
 		ExtractorRepo: extractor.NewMemoryRepository(),
 		PortalRepo:    portal.NewMemoryRepository(),
-		ConfigRepo:    system.NewMemoryConfigRepository(),
+		ConfigRepo:    configRepo,
 		JobRepo:       system.NewMemoryJobRepository(),
 		AuditRepo:     system.NewMemoryAuditRepository(),
 		MailStorage:   mailStorage,
@@ -869,7 +873,7 @@ func newRuntimePersistentState(cfg config.Config) (*AppState, error) {
 		DB:            db,
 	}
 
-	state.DirectIngest, state.MailStorage, err = newDirectIngestService(cfg.MailStoragePath, state.MailboxRepo, state.MessageRepo)
+	state.DirectIngest, state.MailStorage, err = newDirectIngestService(cfg.MailStoragePath, state.MailboxRepo, state.MessageRepo, state.DomainRepo, state.ConfigRepo)
 	if err != nil {
 		return nil, fmt.Errorf("init direct ingest service: %w", err)
 	}
@@ -1191,7 +1195,7 @@ func ensureSeedPortalState(ctx context.Context, state *AppState, user auth.User)
 	return portal.EnsureDemoData(ctx, state.PortalRepo, user)
 }
 
-func newDirectIngestService(root string, mailboxRepo mailbox.Repository, messageRepo message.Repository) (*ingest.DirectService, ingest.FileStorage, error) {
+func newDirectIngestService(root string, mailboxRepo mailbox.Repository, messageRepo message.Repository, domainRepo domain.Repository, configRepo system.ConfigRepository) (*ingest.DirectService, ingest.FileStorage, error) {
 	storageRoot := strings.TrimSpace(root)
 	if storageRoot == "" {
 		storageRoot = filepath.Join(os.TempDir(), "shiro-email-mail")
@@ -1201,7 +1205,101 @@ func newDirectIngestService(root string, mailboxRepo mailbox.Repository, message
 	if err != nil {
 		return nil, nil, err
 	}
-	return ingest.NewDirectService(mailboxRepo, messageRepo, storage), storage, nil
+	service := ingest.NewDirectService(mailboxRepo, messageRepo, storage)
+	service.SetCatchAllRecipientResolver(func(ctx context.Context, address string) (mailbox.Mailbox, error) {
+		return resolveCatchAllRecipient(ctx, domainRepo, configRepo, address)
+	})
+	return service, storage, nil
+}
+
+func resolveCatchAllRecipient(ctx context.Context, domainRepo domain.Repository, configRepo system.ConfigRepository, address string) (mailbox.Mailbox, error) {
+	if !catchAllInboundEnabled(ctx, configRepo) {
+		return mailbox.Mailbox{}, mailbox.ErrMailboxNotFound
+	}
+
+	localPart, domainName, err := mailbox.ResolveMailboxAddress(address)
+	if err != nil {
+		return mailbox.Mailbox{}, mailbox.ErrMailboxNotFound
+	}
+	resolvedLocalPart, err := mailbox.ResolveLocalPart(localPart)
+	if err != nil {
+		return mailbox.Mailbox{}, mailbox.ErrMailboxNotFound
+	}
+
+	selectedDomain, err := findActiveCatchAllDomain(ctx, domainRepo, domainName)
+	if err != nil {
+		return mailbox.Mailbox{}, mailbox.ErrMailboxNotFound
+	}
+
+	ownerUserID := uint64(0)
+	if selectedDomain.OwnerUserID != nil {
+		ownerUserID = *selectedDomain.OwnerUserID
+	}
+	now := time.Now()
+	normalizedDomain := normalizeCatchAllDomainName(domainName)
+	return mailbox.Mailbox{
+		UserID:      ownerUserID,
+		DomainID:    selectedDomain.ID,
+		Domain:      selectedDomain.Domain,
+		LocalPart:   resolvedLocalPart,
+		Address:     resolvedLocalPart + "@" + normalizedDomain,
+		Status:      "active",
+		ExpiresAt:   mailbox.PermanentMailboxExpiresAt,
+		IsPermanent: true,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}, nil
+}
+
+func catchAllInboundEnabled(ctx context.Context, configRepo system.ConfigRepository) bool {
+	settings, err := system.LoadMailInboundPolicySettings(ctx, configRepo)
+	if err != nil {
+		return false
+	}
+	return settings.AllowCatchAll && !settings.RequireExistingMailbox
+}
+
+func findActiveCatchAllDomain(ctx context.Context, domainRepo domain.Repository, domainName string) (domain.Domain, error) {
+	normalized := normalizeCatchAllDomainName(domainName)
+	if normalized == "" {
+		return domain.Domain{}, domain.ErrDomainNotFound
+	}
+
+	items, err := domainRepo.ListActive(ctx)
+	if err != nil {
+		return domain.Domain{}, err
+	}
+
+	bestLabelCount := -1
+	var selected domain.Domain
+	for _, item := range items {
+		managedDomain := normalizeCatchAllDomainName(item.Domain)
+		if managedDomain == "" {
+			continue
+		}
+		if normalized != managedDomain && !strings.HasSuffix(normalized, "."+managedDomain) {
+			continue
+		}
+
+		labelCount := strings.Count(managedDomain, ".") + 1
+		if labelCount > bestLabelCount {
+			bestLabelCount = labelCount
+			selected = item
+		}
+	}
+
+	if bestLabelCount < 0 {
+		return domain.Domain{}, domain.ErrDomainNotFound
+	}
+	return selected, nil
+}
+
+func normalizeCatchAllDomainName(value string) string {
+	normalized := strings.Trim(strings.ToLower(strings.TrimSpace(value)), ".")
+	if normalized == "" || !strings.Contains(normalized, ".") || strings.Contains(normalized, "..") {
+		return ""
+	}
+	return normalized
 }
 
 func resolveInboundPolicyForTargets(settings system.MailInboundPolicyConfig, targets []mailbox.Mailbox) ingest.InboundPolicy {

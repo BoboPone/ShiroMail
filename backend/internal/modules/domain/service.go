@@ -81,6 +81,7 @@ type Service struct {
 	auditRepo        system.AuditRepository
 	cache            *sharedcache.JSONCache
 	providers        *domainprovider.Registry
+	publicDNS        publicDNSResolver
 }
 
 func NewService(repo Repository, hasMailboxes DomainMailboxUsageChecker, cleanupMailboxes DomainMailboxCleanupFunc, configRepo system.ConfigRepository, auditRepo system.AuditRepository, providers *domainprovider.Registry, cache ...*sharedcache.JSONCache) *Service {
@@ -92,6 +93,7 @@ func NewService(repo Repository, hasMailboxes DomainMailboxUsageChecker, cleanup
 		auditRepo:        auditRepo,
 		cache:            optionalJSONCache(cache),
 		providers:        providers,
+		publicDNS:        defaultPublicDNSResolver(),
 	}
 }
 
@@ -435,7 +437,8 @@ func (s *Service) PreviewOwnedProviderVerifications(ctx context.Context, userID 
 	if item.OwnerUserID == nil || *item.OwnerUserID != userID {
 		return nil, ErrProviderAccountNotFound
 	}
-	return s.PreviewProviderVerifications(ctx, providerAccountID, zoneID, zoneName)
+	targetKind := s.verificationKindForZoneName(ctx, zoneName, &userID)
+	return s.previewProviderVerifications(ctx, providerAccountID, zoneID, zoneName, targetKind)
 }
 
 func (s *Service) PreviewOwnedProviderChangeSet(ctx context.Context, userID uint64, providerAccountID uint64, zoneID string, req PreviewProviderChangeSetRequest) (DNSChangeSet, error) {

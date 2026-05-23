@@ -104,6 +104,49 @@ func TestMySQLMailboxRepositoryCreateAndExpire(t *testing.T) {
 	}
 }
 
+func TestMySQLMailboxRepositoryKeepsPermanentMailboxActive(t *testing.T) {
+	db := mustOpenTestMySQL(t)
+	ctx := context.Background()
+
+	mustResetPersistenceTables(t, db)
+	mustEnsureSchema(t, db)
+	userID := mustSeedUser(t, db, "permanent-mailbox-owner", "permanent-mailbox-owner@example.com", []string{"user"})
+	domainID := mustSeedDomain(t, db, "permanent.persist.test")
+
+	repo := mailbox.NewMySQLRepository(db)
+	created, err := repo.Create(ctx, mailbox.Mailbox{
+		UserID:      userID,
+		DomainID:    domainID,
+		Domain:      "permanent.persist.test",
+		LocalPart:   "forever",
+		Address:     "forever@permanent.persist.test",
+		Status:      "active",
+		ExpiresAt:   time.Now().Add(-1 * time.Hour),
+		IsPermanent: true,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("expected create success, got %v", err)
+	}
+
+	expiredIDs, err := repo.ListExpiredIDs(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("expected expired ids success, got %v", err)
+	}
+	if len(expiredIDs) != 0 {
+		t.Fatalf("expected permanent mailbox to stay out of expired ids, got %v", expiredIDs)
+	}
+
+	found, err := repo.FindActiveByAddress(ctx, created.Address)
+	if err != nil {
+		t.Fatalf("expected permanent mailbox lookup success, got %v", err)
+	}
+	if found.ID != created.ID || !found.IsPermanent {
+		t.Fatalf("unexpected permanent mailbox lookup result: %+v", found)
+	}
+}
+
 func TestMySQLMailboxRepositoryFindActiveByAddress(t *testing.T) {
 	db := mustOpenTestMySQL(t)
 	ctx := context.Background()

@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	domainprovider "shiro-email/backend/internal/modules/domain/provider"
+	"shiro-email/backend/internal/modules/system"
 )
 
 func TestDeleteOwnedRejectsMailboxBoundDomain(t *testing.T) {
@@ -104,6 +106,40 @@ func TestDeleteOwnedDeletesUnusedSubdomainsTogether(t *testing.T) {
 		if item.Domain == root.Domain || item.Domain == items[0].Domain {
 			t.Fatalf("expected delete to remove descendant tree, found %q", item.Domain)
 		}
+	}
+}
+
+func TestCreateOwnedTreatsMultilevelManagedDomainAsRoot(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMemoryRepository(nil)
+	service := NewService(repo, nil, nil, nil, nil, nil)
+
+	userID := uint64(7)
+	root, err := service.CreateOwned(context.Background(), userID, CreateDomainRequest{
+		Domain: "oom.fnrry.com",
+	})
+	if err != nil {
+		t.Fatalf("create owned multilevel root domain: %v", err)
+	}
+	if root.Kind != "root" || root.RootDomain != "oom.fnrry.com" || root.Level != 0 {
+		t.Fatalf("expected multilevel domain to be root, got %+v", root)
+	}
+
+	children, err := service.GenerateOwnedSubdomains(context.Background(), userID, GenerateSubdomainsRequest{
+		BaseDomainID: root.ID,
+		Prefixes:     []string{"mx"},
+	})
+	if err != nil {
+		t.Fatalf("generate subdomain under multilevel root: %v", err)
+	}
+	if len(children) != 1 {
+		t.Fatalf("expected one generated child, got %d", len(children))
+	}
+
+	child := children[0]
+	if child.Domain != "mx.oom.fnrry.com" || child.Kind != "subdomain" || child.RootDomain != root.Domain || child.ParentDomain != root.Domain || child.Level != 1 {
+		t.Fatalf("expected generated child to belong to multilevel root, got %+v", child)
 	}
 }
 
@@ -537,10 +573,147 @@ func TestVerifyOwnedSubdomainUsesSubdomainSpecificRecords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify owned subdomain: %v", err)
 	}
+	if result.TotalCount != 1 || len(result.Profiles) != 1 || result.Profiles[0].VerificationType != "inbound_mx" {
+		t.Fatalf("expected subdomain to require only MX verification, got %#v", result.Profiles)
+	}
 	if result.Passed {
 		t.Fatalf("expected subdomain verification to fail when only root records exist: %#v", result)
 	}
 	if result.Domain.HealthStatus == "healthy" || result.Domain.VerificationScore == 100 {
 		t.Fatalf("expected subdomain to remain unverified, got health=%q score=%d", result.Domain.HealthStatus, result.Domain.VerificationScore)
 	}
+}
+
+func TestVerifyOwnedSubdomainWithoutProviderOnlyRequiresPublicMX(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	repo := NewMemoryRepository(nil)
+	configRepo := system.NewMemoryConfigRepository()
+	_, err := configRepo.Upsert(ctx, system.ConfigKeyMailSMTP, map[string]any{
+		"enabled":         true,
+		"listenAddr":      ":2525",
+		"hostname":        "mail.mmjs.top",
+		"dkimCnameTarget": "shiro._domainkey.mmjs.top",
+		"maxMessageBytes": 10485760,
+	}, 1)
+	if err != nil {
+		t.Fatalf("seed smtp config: %v", err)
+	}
+
+	service := NewService(repo, nil, nil, configRepo, nil, nil)
+	service.publicDNS = fakePublicDNSResolver{
+		mx: map[string][]*net.MX{
+			"relay.oom.fnrry.com": {{Host: "mail.mmjs.top.", Pref: 10}},
+		},
+	}
+
+	ownerID := uint64(7)
+	root, err := repo.Upsert(ctx, Domain{
+		Domain:            "oom.fnrry.com",
+		OwnerUserID:       &ownerID,
+		Status:            "active",
+		Visibility:        "private",
+		PublicationStatus: "draft",
+		HealthStatus:      "unknown",
+		Weight:            100,
+	})
+	if err != nil {
+		t.Fatalf("seed root domain: %v", err)
+	}
+
+	items, err := service.GenerateOwnedSubdomains(ctx, ownerID, GenerateSubdomainsRequest{
+		BaseDomainID: root.ID,
+		Prefixes:     []string{"relay"},
+		Status:       "active",
+	})
+	if err != nil {
+		t.Fatalf("generate owned subdomain: %v", err)
+	}
+
+	result, err := service.VerifyOwnedDomain(ctx, ownerID, items[0].ID)
+	if err != nil {
+		t.Fatalf("verify owned subdomain: %v", err)
+	}
+	if !result.Passed {
+		t.Fatalf("expected subdomain public MX verification to pass without ownership TXT: %#v", result)
+	}
+	if result.TotalCount != 1 || result.VerifiedCount != 1 || len(result.Profiles) != 1 || result.Profiles[0].VerificationType != "inbound_mx" {
+		t.Fatalf("expected only inbound_mx verification for subdomain, got %d/%d %#v", result.VerifiedCount, result.TotalCount, result.Profiles)
+	}
+	if result.Domain.HealthStatus != "healthy" || result.Domain.VerificationScore != 100 {
+		t.Fatalf("expected subdomain healthy with score 100, got health=%q score=%d", result.Domain.HealthStatus, result.Domain.VerificationScore)
+	}
+}
+
+func TestVerifyDomainWithoutProviderUsesPublicDNS(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	repo := NewMemoryRepository(nil)
+	configRepo := system.NewMemoryConfigRepository()
+	_, err := configRepo.Upsert(ctx, system.ConfigKeyMailSMTP, map[string]any{
+		"enabled":         true,
+		"listenAddr":      ":2525",
+		"hostname":        "mail.mmjs.top",
+		"dkimCnameTarget": "shiro._domainkey.mmjs.top",
+		"maxMessageBytes": 10485760,
+	}, 1)
+	if err != nil {
+		t.Fatalf("seed smtp config: %v", err)
+	}
+
+	service := NewService(repo, nil, nil, configRepo, nil, nil)
+	service.publicDNS = fakePublicDNSResolver{
+		mx: map[string][]*net.MX{
+			"oom.fnrry.com": {{Host: "mail.mmjs.top.", Pref: 0}},
+		},
+		txt: map[string][]string{
+			"_shiro-verification.oom.fnrry.com": {"shiro-ownership=oom.fnrry.com"},
+		},
+	}
+
+	domain, err := repo.Upsert(ctx, Domain{
+		Domain:            "oom.fnrry.com",
+		Status:            "active",
+		Visibility:        "private",
+		PublicationStatus: "draft",
+		HealthStatus:      "unknown",
+		Weight:            100,
+	})
+	if err != nil {
+		t.Fatalf("seed domain: %v", err)
+	}
+
+	result, err := service.VerifyDomain(ctx, domain.ID)
+	if err != nil {
+		t.Fatalf("verify domain: %v", err)
+	}
+	if !result.Passed {
+		t.Fatalf("expected public dns verification to pass: %#v", result)
+	}
+	if result.Domain.HealthStatus != "healthy" || result.Domain.VerificationScore != 100 {
+		t.Fatalf("expected domain healthy with score 100, got health=%q score=%d", result.Domain.HealthStatus, result.Domain.VerificationScore)
+	}
+	if result.TotalCount != 2 || result.VerifiedCount != 2 {
+		t.Fatalf("expected both required verification profiles to pass, got %d/%d", result.VerifiedCount, result.TotalCount)
+	}
+}
+
+type fakePublicDNSResolver struct {
+	mx    map[string][]*net.MX
+	txt   map[string][]string
+	cname map[string]string
+}
+
+func (r fakePublicDNSResolver) LookupMX(_ context.Context, name string) ([]*net.MX, error) {
+	return r.mx[name], nil
+}
+
+func (r fakePublicDNSResolver) LookupTXT(_ context.Context, name string) ([]string, error) {
+	return r.txt[name], nil
+}
+
+func (r fakePublicDNSResolver) LookupCNAME(_ context.Context, host string) (string, error) {
+	return r.cname[host], nil
 }
