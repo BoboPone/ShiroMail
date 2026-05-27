@@ -465,36 +465,49 @@ function MessageList({
                 onCheckedChange={() => onToggleSelection(message.id)}
                 aria-label={`Select message ${message.id}`}
               />
-              <button className="block w-full min-w-0 text-left" onClick={() => onSelectMessage(message.id)} type="button">
+              <div
+                className="block w-full min-w-0 cursor-pointer text-left"
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  if (window.getSelection()?.toString()) return;
+                  onSelectMessage(message.id);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  onSelectMessage(message.id);
+                }}
+              >
                 <Card className={active ? "border-primary/40 bg-muted/20 shadow-none" : "border-border/60 bg-muted/10 shadow-none"}>
                   <CardContent className="space-y-3 py-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className={`text-sm font-medium ${message.isRead ? "" : "font-semibold"}`}>
+                      <div className="space-y-1 select-text">
+                        <div className={`cursor-text text-sm font-medium ${message.isRead ? "" : "font-semibold"}`}>
                           {message.subject ? `主题 · ${decodeMimeHeaderValue(message.subject)}` : "(无主题)"}
                         </div>
-                        <p className="text-xs text-muted-foreground">{decodeMimeHeaderValue(message.fromAddr)}</p>
+                        <p className="cursor-text text-xs text-muted-foreground">{decodeMimeHeaderValue(message.fromAddr)}</p>
                       </div>
                       <div className="flex items-center gap-2">
                         {!message.isRead && (
                           <span className="size-2 rounded-full bg-primary" title="未读" />
                         )}
-                        <span className="text-xs text-muted-foreground">{formatDate(message.receivedAt)}</span>
+                        <span className="cursor-text select-text text-xs text-muted-foreground">{formatDate(message.receivedAt)}</span>
                       </div>
                     </div>
-                    <p className="line-clamp-2 text-sm leading-6 text-muted-foreground">
+                    <p className="line-clamp-2 cursor-text select-text text-sm leading-6 text-muted-foreground">
                       {message.textPreview || message.htmlPreview || "暂无预览内容"}
                     </p>
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1.5">
+                      <span className="inline-flex cursor-text select-text items-center gap-1.5">
                         <Inbox className="size-3.5" />
                         {decodeMimeHeaderValue(message.toAddr)}
                       </span>
-                      <span>{message.attachmentCount} 个附件</span>
+                      <span className="cursor-text select-text">{message.attachmentCount} 个附件</span>
                     </div>
                   </CardContent>
                 </Card>
-              </button>
+              </div>
             </div>
           );
         })
